@@ -1,10 +1,16 @@
 .idea/
+.vscode/
 *.iml
 .gradle/
+.kotlin/
 **/build/
 **/bin/
 **/obj/
 .vs/
+*.user
+*.suo
+TestResults/
+**/packages/
 **/publish/
 out/
 vcpkg_installed/
@@ -13,6 +19,45 @@ desktop-windows/src/P2PAudio.Windows.App/runtimes/**/*.dll
 search_env/
 nul
 DerivedData/
+.build/
+.swiftpm/
+*.xcarchive
+*.ipa
+*.dSYM/
+*.dSYM.zip
+*.xcresult
 *.xcuserstate
 **/xcuserdata/
 .DS_Store
+._*
+
+# Android native/build artifacts
+.externalNativeBuild/
+.cxx/
+captures/
+*.apk
+*.aab
+*.apks
+*.idsig
+
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+
+# The project consumes NAudio from the official NuGet package only.
+/naudio_decompiled/
+
+# Temporary files
+.tmp/
+tmp/
+*.tmp
+*.bak
+*.orig
+*.rej
+*.swp
+*~
