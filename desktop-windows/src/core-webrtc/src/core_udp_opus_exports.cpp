@@ -60,7 +60,8 @@ void core_udp_opus_destroy(core_udp_opus_handle* handle) {
 core_udp_opus_start_result core_udp_opus_start_streaming(
     core_udp_opus_handle* handle,
     const char* remote_host,
-    int remote_port) {
+    int remote_port,
+    int application) {
     if (handle == nullptr) {
         return make_failure("UDP audio sender handle was null");
     }
@@ -69,6 +70,10 @@ core_udp_opus_start_result core_udp_opus_start_streaming(
     }
 
     try {
+        handle->sender.set_application(
+            application == 1
+                ? core_udp_opus::opus_application::audio
+                : core_udp_opus::opus_application::restricted_lowdelay);
         const auto result = handle->sender.start_streaming(remote_host, remote_port);
         core_udp_opus_start_result exported{};
         exported.success = 1;

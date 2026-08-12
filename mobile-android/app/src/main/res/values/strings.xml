@@ -12,6 +12,17 @@
     <string name="transport_mode_udp_note">UDP + Opus は Windows のメディア音声送信 → Android の受信再生に最適化した片方向モードです。接続は WebRTC と同じ接続コードの流れを使います。</string>
     <string name="transport_mode_udp_sender_unavailable">Android からの UDP + Opus 送信はまだ準備中です。送信したい場合は Windows 側アプリを使ってください。</string>
     <string name="transport_mode_udp_listener_description">Windows の接続コードを貼り付けて、メディア音声を UDP + Opus で低遅延受信します。</string>
+    <string name="receiver_latency_title">受信バッファ（レイテンシー）</string>
+    <string name="receiver_latency_note">Windows → Android の受信再生に効きます。低くすると遅延は減りますが、音切れしやすくなります。</string>
+    <string name="receiver_latency_selected_format">現在の設定: %1$s</string>
+    <string name="receiver_latency_20">20 ms</string>
+    <string name="receiver_latency_20_description">最小バッファの設定です。遅延は最も抑えられますが、Wi-Fi が不安定だと音切れしやすくなります。</string>
+    <string name="receiver_latency_50">50 ms</string>
+    <string name="receiver_latency_50_description">既定の設定です。遅延と安定性のバランスを取りたいときに向いています。</string>
+    <string name="receiver_latency_100">100 ms</string>
+    <string name="receiver_latency_100_description">少し余裕を持たせた設定です。多少のネットワーク揺らぎでも再生が安定しやすくなります。</string>
+    <string name="receiver_latency_300">300 ms</string>
+    <string name="receiver_latency_300_description">かなり大きめのバッファです。遅延は増えますが、音切れをできるだけ避けたいときに向いています。</string>
 
     <string name="status_connection_title">現在の状況</string>
     <string name="status_session_id">セッションID</string>
@@ -174,6 +185,7 @@
     <string name="flow_connected_listener_tip">相手の音を受信しています。音が止まったら両端末のネットワークを確認してください。</string>
     <string name="flow_connected_udp_listener_tip">Windows のメディア音声を UDP + Opus で再生中です。止まったら Windows 側の送信状態を確認してください。</string>
     <string name="flow_connected_generic_tip">接続が終わるまで、この画面を開いたままにしてください。</string>
+    <string name="audio_stream_latency_format">受信設定: %1$s</string>
 
     <string name="flow_details_title">接続の詳細（困ったときだけ確認）</string>
     <string name="flow_details_show">詳細を表示する</string>
@@ -182,6 +194,8 @@
     <string name="notification_channel_name">音声リンクの共有</string>
     <string name="notification_content_title">音声リンク</string>
     <string name="notification_content_text">この端末の音を共有しています</string>
+    <string name="notification_receive_content_title">音声リンク</string>
+    <string name="notification_receive_content_text">Windows のメディア音声をバックグラウンド受信しています</string>
 
     <string name="error_audio_capture_android10">音声共有はAndroid 10以降で利用できます。</string>
     <string name="error_permission_denied">必要な権限が許可されませんでした。</string>

@@ -31,6 +31,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="$(SystemRoot)\System32\msvcp140.dll"
+             Condition="Exists('$(SystemRoot)\System32\msvcp140.dll') and !Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\msvcp140.dll')"
+             Link="runtimes\win-x64\native\msvcp140.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(SystemRoot)\System32\vcruntime140.dll"
+             Condition="Exists('$(SystemRoot)\System32\vcruntime140.dll') and !Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\vcruntime140.dll')"
+             Link="runtimes\win-x64\native\vcruntime140.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(SystemRoot)\System32\vcruntime140_1.dll"
+             Condition="Exists('$(SystemRoot)\System32\vcruntime140_1.dll') and !Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\vcruntime140_1.dll')"
+             Link="runtimes\win-x64\native\vcruntime140_1.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(NativeBuildOutputDir)\$(Configuration)\p2paudio_core_udp_opus.dll"
              Condition="Exists('$(NativeBuildOutputDir)\$(Configuration)\p2paudio_core_udp_opus.dll') and !Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\p2paudio_core_udp_opus.dll')"
              Link="runtimes\win-x64\native\p2paudio_core_udp_opus.dll"

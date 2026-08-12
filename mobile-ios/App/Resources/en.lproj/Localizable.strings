@@ -1,16 +1,18 @@
 "main.title" = "Audio Link";
-"main.subtitle" = "Connect two nearby devices with QR-only pairing.";
-"main.capture_hint" = "On iOS, only app audio captured through Screen Broadcast can be shared.";
+"main.subtitle" = "Receive nearby audio with Android-aligned connection modes.";
 
 "action.start_sender" = "Start Sharing";
-"action.start_listener_scan" = "Scan Sender QR";
+"action.start_listener" = "Receive Audio";
 "action.stop_session" = "Stop";
 "action.copy_payload" = "Copy payload";
 "action.close" = "Close";
 "action.open_logs" = "Logs";
+"action.paste_from_clipboard" = "Paste from clipboard";
+"action.scan_qr" = "Scan QR";
 
 "status.connection_title" = "Connection Status";
 "status.session_id" = "Session ID";
+"status.transport_mode_title" = "Transport";
 "status.network_path_title" = "Network path";
 "status.network_path_wifi" = "Wi-Fi / LAN";
 "status.network_path_usb" = "USB tethering";
@@ -18,34 +20,47 @@
 "status.local_candidates_format" = "Local host ICE candidates: %d";
 "status.selected_pair_format" = "Selected candidate pair: %@";
 "status.failure_hint_format" = "Hint: %@";
-"status.ready" = "Choose one start action below.";
-"status.receiving_remote_audio" = "Receiving audio from the other device";
+"status.ready" = "Choose a transport and tap Receive Audio or Start Sharing.";
+"status.receiving_remote_audio" = "Receiving remote audio";
 "status.start_broadcast_first" = "Start Screen Broadcast first, then tap Start Sharing.";
 "status.capturing_replaykit_audio" = "Preparing audio sharing";
-"status.listener_ready_to_scan" = "Scan the sender init QR.";
-"status.init_generated" = "Init QR is ready. Ask the listener to scan it.";
-"status.confirm_generated" = "Confirm QR is ready. Show it to the sender.";
+"status.listener_ready_to_scan_or_paste" = "Paste a sender init payload or Windows connection code, or scan a QR.";
+"status.udp_listener_ready_to_scan_or_paste" = "Paste the Windows UDP + Opus connection code, or scan it if it was shared as a QR.";
+"status.init_generated" = "Init payload is ready. Share it with the listener.";
+"status.confirm_generated" = "Confirm payload is ready. Send it back to the sender.";
 "status.verification_ready" = "Check that both devices show the same 6-digit code.";
 "status.verification_mismatch" = "Verification mismatch. Start again from Step 1.";
 "status.answer_applied" = "Verification accepted. Finishing connection.";
 "status.session_ended" = "Connection stopped";
 "status.peer_disconnected" = "The other device disconnected";
 "status.ice_connection_failed" = "Could not establish a direct connection";
+"status.connection_code_connecting" = "Confirm was sent to Windows. Waiting for the connection to finish.";
+"status.udp_connection_code_connecting" = "Receiver details were sent to Windows. Waiting for UDP + Opus audio.";
+"status.udp_waiting_for_connection" = "Waiting for UDP + Opus audio from Windows.";
+"status.udp_receiving_audio" = "Receiving Windows audio via UDP + Opus";
+"status.udp_ready" = "UDP + Opus receive mode is ready. Paste a Windows connection code to begin.";
+"status.udp_sender_unavailable" = "UDP + Opus sender mode is not available on iOS. Use Receive Audio for Windows -> iPhone playback.";
+"status.expiry_remaining_format" = "Expires in %d sec";
+"status.expiry_expired" = "Expired";
 "status.next_action_title" = "Next step";
-"status.next_action_entry" = "Tap either Start Sharing or Scan Sender QR.";
-"status.next_action_show_init" = "Show the init QR and ask the listener to scan it.";
-"status.next_action_scan_init" = "Scan the sender init QR.";
-"status.next_action_show_confirm" = "Show your confirm QR and 6-digit code to the sender.";
+"status.next_action_entry" = "Choose a transport mode, then tap Receive Audio or Start Sharing.";
+"status.next_action_show_init" = "Share the init payload with the listener and wait for their confirm payload.";
+"status.next_action_scan_init" = "Paste or scan the sender init payload or Windows connection code.";
+"status.next_action_udp_scan_init" = "Paste or scan the Windows UDP + Opus connection code.";
+"status.next_action_show_confirm" = "Share the confirm payload and compare the 6-digit code.";
 "status.next_action_verify" = "Confirm both devices show the same 6-digit code.";
-"status.next_action_connected" = "You're connected. Keep this screen open while sharing audio.";
+"status.next_action_wait_connection_code" = "Wait for Windows to finish connecting. Compare the verification code if Windows shows one.";
+"status.next_action_udp_wait_connection_code" = "Keep this screen open and wait for Windows audio to begin.";
+"status.next_action_connected" = "You're connected. Keep this screen open while receiving audio.";
 "status.next_action_start_broadcast" = "Start Screen Broadcast from Control Center, then tap Start Sharing.";
 "status.next_action_restart" = "Restart from Step 1.";
-"status.next_action_usb_enable_tethering" = "Enable USB tethering and reconnect the cable, then restart from Step 1.";
-"status.next_action_usb_replug" = "USB tethering was detected but unreachable. Reconnect cable and verify trust/tethering settings.";
-"status.next_action_check_interface" = "No usable host network interface. Check Wi-Fi or USB tethering settings.";
-"status.hint_usb_tether_check" = "Check USB cable, trust dialog, and USB tethering toggle.";
+"status.next_action_usb_enable_tethering" = "Enable USB tethering / Personal Hotspot over USB, reconnect the cable, then restart.";
+"status.next_action_usb_replug" = "USB tethering was detected but unreachable. Reconnect the cable and verify trust/tethering settings.";
+"status.next_action_check_interface" = "No usable local network interface was found. Check Wi-Fi or USB tethering settings.";
+"status.hint_usb_tether_check" = "Check the USB cable, trust dialog, and USB tethering / Personal Hotspot settings.";
 "status.hint_wifi_check" = "Check that both devices are on the same local network.";
 "status.hint_network_interface_check" = "No usable host network interface was found.";
+"status.hint_peer_unreachable" = "The Windows peer could not be reached on the local network.";
 
 "stream_state.idle" = "Idle";
 "stream_state.capturing" = "Preparing";
@@ -55,23 +70,69 @@
 "stream_state.failed" = "Needs attention";
 "stream_state.ended" = "Stopped";
 
-"flow.entry.title" = "Step 1: Choose start action";
-"flow.entry.description" = "Manual code input is removed. Use QR scan only.";
+"transport_mode_title" = "Transport mode";
+"transport_mode_webrtc" = "WebRTC";
+"transport_mode_udp" = "UDP + Opus";
+"transport_mode_webrtc_note" = "Use the standard v2 offer/answer flow. Listener accepts either a sender init payload or a Windows connection code.";
+"transport_mode_udp_note" = "Receive Windows audio with the Android-style UDP + Opus connection-code flow. iOS works as the listener.";
+"transport_mode_udp_sender_note" = "UDP + Opus sender mode is intentionally unavailable on iOS, matching Android.";
 
-"flow.sender.step_title" = "Step 2: Show init QR";
-"flow.sender.step_description" = "After listener scans this QR, scan their confirm QR.";
+"receiver_latency_title" = "Receiver latency";
+"receiver_latency_note" = "Choose this before starting a session. Lower values reduce latency; higher values trade latency for stability.";
+"receiver_latency_selected_format" = "Selected: %@";
+"receiver_latency_20" = "20 ms";
+"receiver_latency_20_description" = "Lowest latency. Best on a very stable LAN or USB path.";
+"receiver_latency_50" = "50 ms";
+"receiver_latency_50_description" = "Balanced default. Good for most Wi-Fi and USB sessions.";
+"receiver_latency_100" = "100 ms";
+"receiver_latency_100_description" = "More buffering for unstable links.";
+"receiver_latency_300" = "300 ms";
+"receiver_latency_300_description" = "Highest stability, highest latency.";
+
+"audio_diagnostics.title" = "Audio diagnostics";
+"audio_diagnostics.source_none" = "Not receiving";
+"audio_diagnostics.source_webrtc" = "WebRTC PCM";
+"audio_diagnostics.source_udp" = "UDP + Opus";
+"audio_diagnostics.source_format" = "Source: %@";
+"audio_diagnostics.format_format" = "Format: %d Hz / %d ch / %d-bit";
+"audio_diagnostics.queue_format" = "Queue: %d / %d frames (target %d)";
+"audio_diagnostics.frames_format" = "Played: %lld, decoded: %lld";
+"audio_diagnostics.drops_format" = "Drops - stale: %lld, overflow: %lld";
+
+"flow.entry.title" = "Step 1: Choose how to connect";
+"flow.entry.description" = "Match Android: choose WebRTC or UDP + Opus, then either share from this iPhone or receive audio from another device.";
+
+"flow.sender.step_title" = "Step 2: Share the init payload";
+"flow.sender.step_description" = "Show this payload to the listener. They can scan it as QR or import the text manually on platforms that support paste.";
 "flow.sender.scan_button" = "Scan Confirm QR";
-"flow.sender.payload_title" = "Your init QR payload";
+"flow.sender.payload_title" = "Your init payload";
 "flow.sender.qr_description" = "Init QR for sender";
-"flow.sender.waiting_code" = "Init QR appears here after sharing starts.";
+"flow.sender.waiting_code" = "The init payload appears here after sharing starts.";
 
-"flow.receiver.step_title" = "Step 2: Scan sender init QR";
-"flow.receiver.step_description" = "Use the entry action to scan sender init QR.";
-"flow.receiver.waiting_code" = "Waiting for sender init QR scan.";
-"flow.receiver.confirm_title" = "Step 3: Show confirm QR";
-"flow.receiver.confirm_description" = "Show this QR and 6-digit code to the sender.";
-"flow.receiver.payload_title" = "Your confirm QR payload";
+"flow.receiver.confirm_title" = "Step 3: Share the confirm payload";
+"flow.receiver.confirm_description" = "Return this payload to the sender, then compare the 6-digit code.";
+"flow.receiver.payload_title" = "Your confirm payload";
 "flow.receiver.qr_description" = "Confirm QR for listener";
+
+"flow.listener_input.title" = "Step 2: Enter sender or Windows code";
+"flow.listener_input.description" = "Paste the sender init payload or the Windows WebRTC connection code, or scan it if it was shared as a QR.";
+"flow.listener_input.payload_title" = "Init payload or connection code";
+"flow.listener_input.placeholder" = "Paste a sender init payload or Windows connection code here.";
+"flow.listener_input.apply" = "Create Confirm";
+
+"flow.udp_listener_input.title" = "Step 2: Enter Windows UDP code";
+"flow.udp_listener_input.description" = "Paste the Windows UDP + Opus connection code. iPhone will open its receive socket and post the receiver details back automatically.";
+"flow.udp_listener_input.payload_title" = "UDP + Opus connection code";
+"flow.udp_listener_input.placeholder" = "Paste a Windows UDP + Opus connection code here.";
+"flow.udp_listener_input.apply" = "Start UDP Receiver";
+
+"flow.listener_wait_connection.title" = "Step 3: Waiting for Windows";
+"flow.listener_wait_connection.description" = "The confirm payload was posted back automatically. Windows is finishing the WebRTC connection.";
+"flow.listener_wait_connection.hint" = "Keep this screen open. If Windows shows a verification code, confirm that it matches.";
+
+"flow.udp_listener_wait_connection.title" = "Step 3: Waiting for UDP audio";
+"flow.udp_listener_wait_connection.description" = "Receiver details were sent to Windows. Audio should start automatically once Windows begins streaming.";
+"flow.udp_listener_wait_connection.hint" = "Keep this screen open while waiting for Windows audio.";
 
 "flow.verification.title" = "Step 3: Verify 6-digit code";
 "flow.verification.description" = "Connect only if both devices show the same code.";
@@ -81,6 +142,7 @@
 
 "toast.init_payload_copied" = "Init payload copied.";
 "toast.confirm_payload_copied" = "Confirm payload copied.";
+"toast.listener_input_pasted" = "Pasted from clipboard.";
 
 "common.char_count_format" = "%d chars";
 
@@ -89,21 +151,32 @@
 "log.copy_all" = "Copy All";
 "log.clear" = "Clear";
 
-"error.failed_encode_offer" = "Could not create an init QR payload";
-"error.failed_encode_answer" = "Could not create a confirm QR payload";
+"error.failed_encode_offer" = "Could not create an init payload";
+"error.failed_encode_answer" = "Could not create a confirm payload";
 "error.webrtc_negotiation_failed" = "Could not establish a direct connection.";
-"error.invalid_init_payload" = "The init QR payload is invalid";
-"error.invalid_confirm_payload" = "The confirm QR payload is invalid";
+"error.invalid_init_payload" = "The init payload is invalid";
+"error.invalid_confirm_payload" = "The confirm payload is invalid";
 "error.apply_answer_failed" = "Could not apply the confirm payload";
-"error.session_expired" = "The QR payload expired";
-"error.invalid_payload" = "The QR payload is invalid";
+"error.session_expired" = "The payload or connection code expired";
+"error.invalid_payload" = "The payload is invalid";
 "error.offer_nil" = "Init payload is missing";
 "error.local_offer_missing" = "Local init SDP is missing";
 "error.ice_gather_timeout" = "Connection setup timed out";
 "error.answer_nil" = "Confirm payload is missing";
 "error.local_answer_missing" = "Local confirm SDP is missing";
 "error.peer_connection_unavailable" = "Connection engine unavailable";
-"error.data_channel_create_failed" = "Could not create audio channel";
-"error.usb_tether_unavailable" = "USB tethering path is unavailable. Enable USB tethering and reconnect.";
-"error.usb_tether_not_reachable" = "USB tethering path was detected but connection failed. Reconnect and verify trust settings.";
+"error.data_channel_create_failed" = "Could not create the audio channel";
+"error.usb_tether_unavailable" = "USB tethering path is unavailable. Enable tethering and reconnect.";
+"error.usb_tether_not_reachable" = "USB tethering was detected but the peer could not be reached. Reconnect and check trust settings.";
 "error.network_interface_not_usable" = "No usable local network interface was found for host ICE candidates.";
+"error.invalid_connection_code" = "The Windows connection code is invalid";
+"error.connection_code_required" = "A Windows connection code is required for UDP + Opus on iOS";
+"error.peer_unreachable" = "Could not reach the Windows peer on the local network.";
+"error.peer_unreachable_http" = "The Windows peer returned HTTP %d during connection-code exchange.";
+"error.invalid_udp_init_payload" = "The UDP init payload is invalid";
+"error.invalid_udp_confirm_payload" = "The UDP confirm payload is invalid";
+"error.audio_playback_unavailable" = "Audio playback could not be prepared on this iPhone.";
+"error.udp_listener_start_failed" = "Could not open the UDP receive socket on this iPhone.";
+"error.udp_receive_failed" = "UDP receive failed while waiting for Windows audio.";
+"error.udp_decode_failed" = "Failed to decode UDP + Opus audio from Windows.";
+"error.opus_decoder_unavailable" = "Opus decoding is unavailable on this iPhone.";

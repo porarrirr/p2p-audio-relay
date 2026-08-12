@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using P2PAudio.Windows.App.Logging;
 using P2PAudio.Windows.Core.Audio;
@@ -19,7 +21,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
     private readonly LoopbackCaptureOptions _options;
     private readonly AudioFrameTimingClock _frameTimingClock = new();
     private readonly List<byte> _pendingPcm16 = [];
-    private WasapiLoopbackCapture? _capture;
+    private WasapiCapture? _capture;
     private BufferedWaveProvider? _resampleInputBuffer;
     private MediaFoundationResampler? _resampler;
     private BlockingCollection<PendingFrame>? _pendingSendQueue;
@@ -37,6 +39,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
     private long _lastSendFailureLogAtMs;
     private long _lastQueueDropLogAtMs;
     private long _lastDiagnosticsPublishedAtMs;
+    private bool _frameTimingInitialized;
 
     public LoopbackPcmSender(Func<byte[], bool> sendPacket)
         : this(frame => sendPacket(PcmPacketCodec.Encode(frame)))
@@ -64,7 +67,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
 
     public void Start()
     {
-        WasapiLoopbackCapture? capture = null;
+        WasapiCapture? capture = null;
         LoopbackAudioDiagnostics diagnostics;
         SendLoopHandle sendLoopHandle = new(null, null, null);
         int inputSampleRate = 0;
@@ -82,19 +85,16 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
                     return;
                 }
 
-                capture = new WasapiLoopbackCapture();
+                capture = new LowLatencyWasapiLoopbackCapture(_options.AudioBufferMilliseconds);
                 _capture = capture;
                 _sampleRate = ResolveOutputSampleRate(capture.WaveFormat.SampleRate);
                 _channels = PcmCaptureNormalizer.GetOutputChannels(capture.WaveFormat.Channels);
-                _frameSamples = Math.Max(1, _sampleRate / _options.FramesPerSecond);
+                _frameSamples = _options.ResolveFrameSamples(_sampleRate);
                 _sequence = 0;
                 ResetTelemetryUnsafe();
                 _pendingPcm16.Clear();
                 ConfigureResamplerUnsafe(capture.WaveFormat.SampleRate, _channels);
-                _frameTimingClock.Reset(
-                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    Environment.TickCount64
-                );
+                _frameTimingInitialized = false;
 
                 _pendingSendQueue = new BlockingCollection<PendingFrame>(
                     new ConcurrentQueue<PendingFrame>(),
@@ -150,14 +150,15 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
                 ["channels"] = channels,
                 ["bitsPerSample"] = bitsPerSample,
                 ["encoding"] = encoding,
-                ["framesPerSecond"] = _options.FramesPerSecond
+                ["framesPerSecond"] = _options.FramesPerSecond,
+                ["audioBufferMilliseconds"] = _options.AudioBufferMilliseconds
             }
         );
     }
 
     public void Stop()
     {
-        WasapiLoopbackCapture? capture;
+        WasapiCapture? capture;
         SendLoopHandle sendLoopHandle;
         LoopbackAudioDiagnostics diagnostics;
         long sentFrames;
@@ -292,7 +293,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
 
         _channels = normalized.Channels;
         _sampleRate = ResolveOutputSampleRate(format.SampleRate);
-        _frameSamples = Math.Max(1, _sampleRate / _options.FramesPerSecond);
+        _frameSamples = _options.ResolveFrameSamples(_sampleRate);
 
         if (_resampler is null)
         {
@@ -362,6 +363,20 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
         return _options.TargetSampleRate ?? inputSampleRate;
     }
 
+    private void EnsureFrameTimingClockInitializedUnsafe()
+    {
+        if (_frameTimingInitialized)
+        {
+            return;
+        }
+
+        _frameTimingClock.Reset(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Environment.TickCount64,
+            Stopwatch.GetTimestamp());
+        _frameTimingInitialized = true;
+    }
+
     private List<PendingFrame> DrainFramesUnsafe()
     {
         var frames = new List<PendingFrame>();
@@ -370,6 +385,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
         {
             var pcm = _pendingPcm16.GetRange(0, frameBytes).ToArray();
             _pendingPcm16.RemoveRange(0, frameBytes);
+            EnsureFrameTimingClockInitializedUnsafe();
             var timing = _frameTimingClock.Next(_sampleRate, _frameSamples);
 
             frames.Add(new PendingFrame(
@@ -382,7 +398,8 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
                     FrameSamplesPerChannel: _frameSamples,
                     PcmBytes: pcm
                 ),
-                timing.DueAtTickMs
+                timing.DueAtTickMs,
+                timing.DueAtTimestampTicks
             ));
         }
 
@@ -465,11 +482,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
         {
             foreach (var pendingFrame in pendingSendQueue.GetConsumingEnumerable(cancellationToken))
             {
-                var delayMs = pendingFrame.DueAtTickMs - Environment.TickCount64;
-                if (delayMs > 0)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(delayMs), cancellationToken);
-                }
+                await DelayUntilDueAsync(pendingFrame.DueAtTimestampTicks, cancellationToken);
 
                 var success = false;
                 string? exceptionMessage = null;
@@ -531,6 +544,36 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
         }
         catch (ObjectDisposedException)
         {
+        }
+    }
+
+    private static async Task DelayUntilDueAsync(long dueAtTimestampTicks, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var remainingTicks = dueAtTimestampTicks - Stopwatch.GetTimestamp();
+            if (remainingTicks <= 0)
+            {
+                return;
+            }
+
+            var remainingMs = remainingTicks * 1000d / Stopwatch.Frequency;
+            if (remainingMs >= 3)
+            {
+                var coarseDelayMs = Math.Max(1, (int)Math.Floor(remainingMs - 1));
+                await Task.Delay(coarseDelayMs, cancellationToken);
+                continue;
+            }
+
+            if (remainingMs >= 1)
+            {
+                Thread.Sleep(0);
+                continue;
+            }
+
+            Thread.SpinWait(256);
         }
     }
 
@@ -651,6 +694,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
         _sampleRate = 0;
         _channels = 0;
         _frameSamples = 0;
+        _frameTimingInitialized = false;
     }
 
     private SendLoopHandle DetachSendLoopUnsafe()
@@ -679,7 +723,7 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
         handle.Cancellation?.Dispose();
     }
 
-    private sealed record PendingFrame(PcmFrame Frame, long DueAtTickMs);
+    private sealed record PendingFrame(PcmFrame Frame, long DueAtTickMs, long DueAtTimestampTicks);
 
     private sealed record SendLoopHandle(
         BlockingCollection<PendingFrame>? Queue,
@@ -690,25 +734,77 @@ public sealed class LoopbackPcmSender : ILoopbackAudioSender
 
 public sealed class LoopbackCaptureOptions
 {
-    private const int DefaultFramesPerSecond = 50;
+    private const int DefaultFrameDurationMs = 20;
+    private const int DefaultAudioBufferMilliseconds = 20;
 
-    public LoopbackCaptureOptions(int? targetSampleRate = null, int framesPerSecond = DefaultFramesPerSecond)
+    public LoopbackCaptureOptions(
+        int? targetSampleRate = null,
+        int frameDurationMs = DefaultFrameDurationMs,
+        int audioBufferMilliseconds = DefaultAudioBufferMilliseconds,
+        UdpOpusApplication application = UdpOpusApplication.RestrictedLowDelay)
     {
         if (targetSampleRate is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(targetSampleRate));
         }
 
-        if (framesPerSecond <= 0)
+        if (frameDurationMs <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(framesPerSecond));
+            throw new ArgumentOutOfRangeException(nameof(frameDurationMs));
+        }
+
+        if (audioBufferMilliseconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(audioBufferMilliseconds));
         }
 
         TargetSampleRate = targetSampleRate;
-        FramesPerSecond = framesPerSecond;
+        FrameDurationMs = frameDurationMs;
+        AudioBufferMilliseconds = audioBufferMilliseconds;
+        Application = application;
     }
 
     public int? TargetSampleRate { get; }
 
-    public int FramesPerSecond { get; }
+    public int FrameDurationMs { get; }
+
+    public int FramesPerSecond => Math.Max(1, (int)Math.Round(1000d / FrameDurationMs));
+
+    public int AudioBufferMilliseconds { get; }
+
+    public UdpOpusApplication Application { get; }
+
+    public int ResolveFrameSamples(int sampleRate)
+    {
+        if (sampleRate <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleRate));
+        }
+
+        return Math.Max(1, (int)Math.Round(sampleRate * (FrameDurationMs / 1000d)));
+    }
+}
+
+internal sealed class LowLatencyWasapiLoopbackCapture : WasapiCapture
+{
+    public LowLatencyWasapiLoopbackCapture(int audioBufferMilliseconds)
+        : this(GetDefaultLoopbackCaptureDevice(), audioBufferMilliseconds)
+    {
+    }
+
+    private LowLatencyWasapiLoopbackCapture(MMDevice captureDevice, int audioBufferMilliseconds)
+        : base(captureDevice, useEventSync: true, audioBufferMillisecondsLength: audioBufferMilliseconds)
+    {
+    }
+
+    private static MMDevice GetDefaultLoopbackCaptureDevice()
+    {
+        using var devices = new MMDeviceEnumerator();
+        return devices.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+    }
+
+    protected override AudioClientStreamFlags GetAudioClientStreamFlags()
+    {
+        return AudioClientStreamFlags.Loopback | base.GetAudioClientStreamFlags();
+    }
 }

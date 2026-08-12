@@ -3,7 +3,6 @@ import XCTest
 @testable import P2PAudio
 
 final class QrPayloadCodecTests: XCTestCase {
-
     func testEncodeInitCompressesAndDecodesLargePayload() throws {
         let payload = PairingInitPayload(
             sessionId: "session-1",
@@ -18,6 +17,44 @@ final class QrPayloadCodecTests: XCTestCase {
 
         let decoded = try QrPayloadCodec.decodeInit(encoded)
         assertEqualInit(decoded, payload)
+    }
+
+    func testEncodeDecodeUdpInitRoundTrip() throws {
+        let payload = UdpInitPayload(
+            sessionId: "udp-session-1",
+            senderDeviceName: "windows",
+            expiresAtUnixMs: 1_760_000_000_000
+        )
+
+        let encoded = try QrPayloadCodec.encodeUdpInit(payload)
+        let decoded = try QrPayloadCodec.decodeUdpInit(encoded)
+
+        XCTAssertEqual(decoded.version, payload.version)
+        XCTAssertEqual(decoded.phase, payload.phase)
+        XCTAssertEqual(decoded.transport, payload.transport)
+        XCTAssertEqual(decoded.sessionId, payload.sessionId)
+        XCTAssertEqual(decoded.senderDeviceName, payload.senderDeviceName)
+        XCTAssertEqual(decoded.expiresAtUnixMs, payload.expiresAtUnixMs)
+    }
+
+    func testEncodeDecodeUdpConfirmRoundTrip() throws {
+        let payload = UdpConfirmPayload(
+            sessionId: "udp-session-2",
+            receiverDeviceName: "iphone",
+            receiverPort: 49_152,
+            expiresAtUnixMs: 1_760_000_000_123
+        )
+
+        let encoded = try QrPayloadCodec.encodeUdpConfirm(payload)
+        let decoded = try QrPayloadCodec.decodeUdpConfirm(encoded)
+
+        XCTAssertEqual(decoded.version, payload.version)
+        XCTAssertEqual(decoded.phase, payload.phase)
+        XCTAssertEqual(decoded.transport, payload.transport)
+        XCTAssertEqual(decoded.sessionId, payload.sessionId)
+        XCTAssertEqual(decoded.receiverDeviceName, payload.receiverDeviceName)
+        XCTAssertEqual(decoded.receiverPort, payload.receiverPort)
+        XCTAssertEqual(decoded.expiresAtUnixMs, payload.expiresAtUnixMs)
     }
 
     func testDecodeInitRejectsLegacyRawJson() {

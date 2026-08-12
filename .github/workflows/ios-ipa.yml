@@ -66,6 +66,13 @@ jobs:
           PROJECT_PATH="$PROJECT_PATH_INPUT"
           SPEC_PATH="$PROJECT_SPEC_PATH_INPUT"
 
+          if [ -e "$SPEC_PATH" ]; then
+            if ! command -v xcodegen >/dev/null 2>&1; then
+              brew install xcodegen
+            fi
+            xcodegen generate --spec "$SPEC_PATH"
+          fi
+
           if [ -e "$PROJECT_PATH" ]; then
             case "$PROJECT_PATH" in
               *.xcodeproj|*.xcworkspace) ;;
@@ -82,17 +89,6 @@ jobs:
             echo "Project container not found: $PROJECT_PATH"
             echo "Project spec not found: $SPEC_PATH"
             exit 1
-          fi
-
-          if ! command -v xcodegen >/dev/null 2>&1; then
-            brew install xcodegen
-          fi
-
-          xcodegen generate --spec "$SPEC_PATH"
-
-          if [ -e "$PROJECT_PATH" ]; then
-            echo "RESOLVED_PROJECT_PATH=$PROJECT_PATH" >> "$GITHUB_ENV"
-            exit 0
           fi
 
           SPEC_DIR="$(cd "$(dirname "$SPEC_PATH")" && pwd)"
@@ -118,6 +114,38 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Run unit tests
+        run: |
+          set -euo pipefail
+          PROJECT_PATH="${RESOLVED_PROJECT_PATH}"
+          SCHEME="$SCHEME_INPUT"
+          SIMULATOR_NAME="$(xcrun simctl list devices available | awk -F ' \\(' '/iPhone/{print $1; exit}' | xargs)"
+          if [ -z "$SIMULATOR_NAME" ]; then
+            echo "No available iPhone simulator was found."
+            exit 1
+          fi
+          DESTINATION="platform=iOS Simulator,name=${SIMULATOR_NAME}"
+
+          if [[ "$PROJECT_PATH" == *.xcworkspace ]]; then
+            xcodebuild test \
+              -workspace "$PROJECT_PATH" \
+              -scheme "$SCHEME" \
+              -configuration Debug \
+              -destination "$DESTINATION" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY=""
+          else
+            xcodebuild test \
+              -project "$PROJECT_PATH" \
+              -scheme "$SCHEME" \
+              -configuration Debug \
+              -destination "$DESTINATION" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY=""
+          fi
 
       - name: Archive (unsigned)
         run: |

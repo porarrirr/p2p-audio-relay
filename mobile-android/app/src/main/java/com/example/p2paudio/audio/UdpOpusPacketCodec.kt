@@ -6,7 +6,7 @@ import java.nio.ByteOrder
 object UdpOpusPacketCodec {
     private val MAGIC = byteArrayOf('P'.code.toByte(), '2'.code.toByte(), 'A'.code.toByte(), 'U'.code.toByte())
     private const val VERSION: Byte = 1
-    private const val HEADER_BYTES = 26
+    internal const val HEADER_BYTES = 26
 
     fun encode(packet: UdpOpusPacket): ByteArray {
         require(packet.sampleRate > 0)

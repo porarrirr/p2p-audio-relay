@@ -1,69 +1,54 @@
 # iOS App
 
-This folder contains Swift source files for an iOS target using ReplayKit + WebRTC.
+This folder contains the Swift iOS app and ReplayKit broadcast extension for the shared v2 pairing/audio protocol.
+
+## Supported flows
+
+- `WebRTC` sender and receiver flow using:
+  - init / confirm payload exchange,
+  - Windows connection codes (`p2paudio-c1:`),
+  - compressed payload transport (`p2paudio-z1:`).
+- `UDP + Opus` listener flow for **Windows -> iPhone** playback using the Android-aligned connection-code exchange.
+- Receiver latency presets aligned with Android:
+  - `20 ms`
+  - `50 ms` (default)
+  - `100 ms`
+  - `300 ms`
+
+## Current platform behavior
+
+- iOS sender uses ReplayKit app-audio capture.
+- iOS UDP + Opus sender mode is intentionally unavailable, matching Android.
+- Windows -> iPhone is supported over:
+  - WebRTC DataChannel PCM
+  - UDP + Opus connection-code receive mode
 
 ## Required Xcode setup
 
 1. Create an iOS App target named `P2PAudio`.
 2. Add a Broadcast Upload Extension target named `AudioBroadcastExtension`.
-3. Add Swift Package dependency:
-   - `https://github.com/webrtc-sdk/webrtc`
-4. Add required capabilities:
-   - App Groups (for app + broadcast extension shared state and PCM bridge file).
-   - Background Modes -> Audio, AirPlay, and Picture in Picture.
-   - App Group identifier used by this project: `group.com.example.p2paudio`.
-5. Add privacy keys in app `Info.plist`:
-   - `NSCameraUsageDescription` (QR scanner).
-   - `NSMicrophoneUsageDescription` (if ReplayKit UI path requests it in your target setup).
-6. Wire these source files into app/extension targets.
-7. Optional: use `mobile-ios/project.yml` (`xcodegen`) to generate `P2PAudio.xcodeproj`.
+3. Add the Swift Package dependency declared in `project.yml`.
+4. Enable:
+   - App Groups
+   - Background Modes -> Audio, AirPlay, and Picture in Picture
+5. Optional: generate the project from `mobile-ios/project.yml` using `xcodegen`.
 
-### App Groups configuration in this repo
-
-- `mobile-ios/project.yml` sets `CODE_SIGN_ENTITLEMENTS` for both app and broadcast extension targets.
-- Entitlements files are committed at:
-  - `App/P2PAudio.entitlements`
-  - `AudioBroadcastExtension/AudioBroadcastExtension.entitlements`
-- If ReplayKit sender flow always reports inactive broadcast, verify your Apple Developer team has this App Group enabled for both bundle identifiers.
-
-## GitHub Actions: IPA build
+## GitHub Actions
 
 Workflow: `.github/workflows/ios-ipa.yml`
 
-Run it from `Actions -> Build iOS IPA -> Run workflow`.
-This workflow builds an unsigned `.ipa` (no code signing secrets required).
-If `project_path` is missing, CI auto-generates the project from `project_spec_path` using `xcodegen`.
-You can also:
-- push a Git tag (for example `v0.1.0`) to automatically build and publish `unsigned.ipa` to that tag's GitHub Release,
-- or publish a GitHub Release to build and attach `unsigned.ipa` to the published release tag.
+The workflow now:
 
-`workflow_dispatch` inputs:
-
-- `project_path`: `.xcodeproj` or `.xcworkspace` path in this repo.
-- `project_spec_path`: `xcodegen` spec path used as fallback when `project_path` does not exist.
-- `scheme`: Scheme name to archive.
-- `configuration`: Usually `Release`.
-- `publish_release`: `true` にすると `unsigned.ipa` を GitHub Releases に配置。
-- `release_tag`: リリースタグ（手動実行で空なら `ios-unsigned-<run_number>`。タグpush実行ではそのタグ名）。
-- `release_name`: リリース名（空なら自動）。
+1. resolves or generates the Xcode project,
+2. runs iOS unit tests on a simulator,
+3. archives an unsigned `.ipa`,
+4. uploads the IPA artifact,
+5. optionally publishes it to GitHub Releases.
 
 ## Notes
 
-- iOS sender captures ReplayKit app audio only.
-- Ringtones/notifications/system-wide audio cannot be captured by third-party apps.
-- There is no relay/signaling server. QR payload exchange is device-to-device.
-- PCM audio is transported over WebRTC DataChannel label `audio-pcm`.
-- QR payload transport supports compressed mode (`p2paudio-z1:` zlib + Base64URL).
-- Connection diagnostics include path classification (`wifi_lan` / `usb_tether` / `unknown`) and local host ICE candidate counters.
-- Unsigned IPA cannot be installed directly on physical iOS devices without re-signing.
-- USB operation with Windows uses Personal Hotspot over USB (IP path). Direct app-level USB accessory transport is not included.
-
-## In-app logs
-
-- The app has a built-in log screen (`Logs` button on the main screen).
-- The log viewer stores recent entries in-memory (ring buffer style) and supports:
-  - clear logs,
-  - copy all logs to clipboard.
-- Logs include WebRTC state transitions, ReplayKit bridge events, payload flow milestones, and failure diagnostics.
-- Sensitive data policy:
-  - SDP and payload full contents are not printed; only metadata such as lengths/session IDs are shown.
+- iOS sender can capture ReplayKit app audio only.
+- System-wide sounds (for example ringtones/notifications) cannot be captured by third-party apps.
+- There is no relay or signaling server; all flows are LAN / USB-IP only.
+- USB support with Windows uses Personal Hotspot over USB (IP path), not direct accessory transport.
+- Unsigned IPA output from CI still needs re-signing before installation on physical devices.

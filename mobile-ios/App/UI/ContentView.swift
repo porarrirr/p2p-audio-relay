@@ -35,10 +35,6 @@ struct ContentView: View {
                     }
 
                     flowSection
-
-                    Text(L10n.tr("main.capture_hint"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
                 .padding(16)
             }
@@ -47,7 +43,8 @@ struct ContentView: View {
             QrScannerView(
                 onScanned: { payload in
                     switch target {
-                    case .initPayload:
+                    case .listenerInput:
+                        viewModel.listenerInputRaw = payload
                         viewModel.createConfirm(from: payload)
                     case .confirmPayload:
                         viewModel.prepareConfirmForVerification(from: payload)
@@ -106,6 +103,13 @@ struct ContentView: View {
                     .textSelection(.enabled)
             }
 
+            Divider().padding(.top, 2)
+            Text(L10n.tr("status.transport_mode_title"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(viewModel.transportMode.readableLabel)
+                .font(.subheadline)
+
             if viewModel.connectionDiagnostics.hasContent {
                 Divider().padding(.top, 2)
                 Text(L10n.tr("status.network_path_title"))
@@ -143,6 +147,59 @@ struct ContentView: View {
                 }
             }
 
+            if viewModel.audioStreamDiagnostics.hasContent() {
+                Divider().padding(.top, 2)
+                Text(L10n.tr("audio_diagnostics.title"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(
+                    L10n.tr(
+                        "audio_diagnostics.source_format",
+                        viewModel.audioStreamDiagnostics.source.readableLabel
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    L10n.tr(
+                        "audio_diagnostics.format_format",
+                        viewModel.audioStreamDiagnostics.sampleRate,
+                        viewModel.audioStreamDiagnostics.channels,
+                        viewModel.audioStreamDiagnostics.bitsPerSample
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    L10n.tr(
+                        "audio_diagnostics.queue_format",
+                        viewModel.audioStreamDiagnostics.queueDepthFrames,
+                        viewModel.audioStreamDiagnostics.maxQueueFrames,
+                        viewModel.audioStreamDiagnostics.targetPrebufferFrames
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    L10n.tr(
+                        "audio_diagnostics.frames_format",
+                        viewModel.audioStreamDiagnostics.playedFrames,
+                        viewModel.audioStreamDiagnostics.decodedPackets
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(
+                    L10n.tr(
+                        "audio_diagnostics.drops_format",
+                        viewModel.audioStreamDiagnostics.staleFrameDrops,
+                        viewModel.audioStreamDiagnostics.queueOverflowDrops
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             Divider().padding(.top, 2)
             Text(L10n.tr("status.next_action_title"))
                 .font(.caption.weight(.semibold))
@@ -165,23 +222,82 @@ struct ContentView: View {
             title: L10n.tr("flow.entry.title"),
             description: L10n.tr("flow.entry.description")
         ) {
-            HStack(spacing: 10) {
-                Button(L10n.tr("action.start_sender")) {
-                    viewModel.startSenderFlow()
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.tr("transport_mode_title"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { viewModel.transportMode },
+                            set: { viewModel.selectTransportMode($0) }
+                        )
+                    ) {
+                        ForEach(TransportMode.allCases) { mode in
+                            Text(mode.readableLabel).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(viewModel.transportMode.descriptionText)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if viewModel.transportMode == .udpOpus {
+                        Text(L10n.tr("transport_mode_udp_sender_note"))
+                            .font(.footnote)
+                            .foregroundStyle(Color(red: 0.74, green: 0.18, blue: 0.22))
+                    }
                 }
-                .buttonStyle(PrimaryActionButtonStyle())
 
-                Button(L10n.tr("action.start_listener_scan")) {
-                    viewModel.beginListenerFlow()
-                    scanTarget = .initPayload
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L10n.tr("receiver_latency_title"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { viewModel.receiverLatencyPreset },
+                            set: { viewModel.selectReceiverLatencyPreset($0) }
+                        )
+                    ) {
+                        ForEach(PlaybackLatencyPreset.allCases) { preset in
+                            Text(preset.localizedLabel).tag(preset)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Text(
+                        L10n.tr(
+                            "receiver_latency_selected_format",
+                            viewModel.receiverLatencyPreset.localizedLabel
+                        )
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.05, green: 0.17, blue: 0.28))
+                    Text(viewModel.receiverLatencyPreset.localizedDescription)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text(L10n.tr("receiver_latency_note"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(PrimaryActionButtonStyle())
-            }
 
-            Button(L10n.tr("action.stop_session")) {
-                viewModel.endSession()
+                HStack(spacing: 10) {
+                    Button(L10n.tr("action.start_sender")) {
+                        viewModel.startSenderFlow()
+                    }
+                    .buttonStyle(PrimaryActionButtonStyle())
+
+                    Button(L10n.tr("action.start_listener")) {
+                        viewModel.beginListenerFlow()
+                    }
+                    .buttonStyle(PrimaryActionButtonStyle())
+                }
+
+                Button(L10n.tr("action.stop_session")) {
+                    viewModel.endSession()
+                }
+                .buttonStyle(SecondaryActionButtonStyle())
             }
-            .buttonStyle(SecondaryActionButtonStyle())
         }
     }
 
@@ -210,6 +326,7 @@ struct ContentView: View {
                             showTransientMessage(L10n.tr("toast.init_payload_copied"))
                         }
                     )
+                    ExpiryStatusView(expiresAtUnixMs: viewModel.payloadExpiresAtUnixMs)
                 }
 
                 Button(L10n.tr("flow.sender.scan_button")) {
@@ -238,15 +355,52 @@ struct ContentView: View {
                     .buttonStyle(SecondaryActionButtonStyle())
                 }
             }
-        case .listenerScanInit:
+        case .listenerInput:
             StepCard(
                 number: 2,
-                title: L10n.tr("flow.receiver.step_title"),
-                description: L10n.tr("flow.receiver.step_description")
+                title: viewModel.transportMode == .webRtc
+                    ? L10n.tr("flow.listener_input.title")
+                    : L10n.tr("flow.udp_listener_input.title"),
+                description: viewModel.transportMode == .webRtc
+                    ? L10n.tr("flow.listener_input.description")
+                    : L10n.tr("flow.udp_listener_input.description")
             ) {
-                Text(L10n.tr("flow.receiver.waiting_code"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                PayloadInputPanel(
+                    title: viewModel.transportMode == .webRtc
+                        ? L10n.tr("flow.listener_input.payload_title")
+                        : L10n.tr("flow.udp_listener_input.payload_title"),
+                    placeholder: viewModel.transportMode == .webRtc
+                        ? L10n.tr("flow.listener_input.placeholder")
+                        : L10n.tr("flow.udp_listener_input.placeholder"),
+                    text: $viewModel.listenerInputRaw
+                )
+
+                HStack(spacing: 10) {
+                    Button(L10n.tr("action.paste_from_clipboard")) {
+                        if let clipboard = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !clipboard.isEmpty {
+                            viewModel.listenerInputRaw = clipboard
+                            showTransientMessage(L10n.tr("toast.listener_input_pasted"))
+                        }
+                    }
+                    .buttonStyle(SecondaryActionButtonStyle())
+
+                    Button(L10n.tr("action.scan_qr")) {
+                        scanTarget = .listenerInput
+                    }
+                    .buttonStyle(SecondaryActionButtonStyle())
+                }
+
+                Button(
+                    viewModel.transportMode == .webRtc
+                        ? L10n.tr("flow.listener_input.apply")
+                        : L10n.tr("flow.udp_listener_input.apply")
+                ) {
+                    viewModel.createConfirm(from: viewModel.listenerInputRaw)
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .disabled(viewModel.listenerInputRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(viewModel.listenerInputRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.6 : 1)
             }
         case .listenerShowConfirm:
             StepCard(
@@ -264,6 +418,29 @@ struct ContentView: View {
                     }
                 )
                 VerificationCodeBlock(code: viewModel.verificationCode)
+                ExpiryStatusView(expiresAtUnixMs: viewModel.payloadExpiresAtUnixMs)
+            }
+        case .listenerWaitForConnection:
+            StepCard(
+                number: 3,
+                title: viewModel.transportMode == .webRtc
+                    ? L10n.tr("flow.listener_wait_connection.title")
+                    : L10n.tr("flow.udp_listener_wait_connection.title"),
+                description: viewModel.transportMode == .webRtc
+                    ? L10n.tr("flow.listener_wait_connection.description")
+                    : L10n.tr("flow.udp_listener_wait_connection.description")
+            ) {
+                if viewModel.transportMode == .webRtc {
+                    VerificationCodeBlock(code: viewModel.verificationCode)
+                }
+                Text(
+                    viewModel.transportMode == .webRtc
+                        ? L10n.tr("flow.listener_wait_connection.hint")
+                        : L10n.tr("flow.udp_listener_wait_connection.hint")
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                ExpiryStatusView(expiresAtUnixMs: viewModel.payloadExpiresAtUnixMs)
             }
         }
     }
@@ -289,11 +466,6 @@ struct ContentView: View {
                 return L10n.tr("status.next_action_restart")
             }
         }
-        if viewModel.connectionDiagnostics.pathType == .usbTether &&
-            viewModel.streamState == .connecting &&
-            viewModel.connectionDiagnostics.localCandidatesCount == 0 {
-            return L10n.tr("status.next_action_usb_enable_tethering")
-        }
         switch viewModel.setupStep {
         case .entry:
             return L10n.tr("status.next_action_entry")
@@ -301,10 +473,16 @@ struct ContentView: View {
             return L10n.tr("status.next_action_show_init")
         case .senderVerifyCode:
             return L10n.tr("status.next_action_verify")
-        case .listenerScanInit:
-            return L10n.tr("status.next_action_scan_init")
+        case .listenerInput:
+            return viewModel.transportMode == .webRtc
+                ? L10n.tr("status.next_action_scan_init")
+                : L10n.tr("status.next_action_udp_scan_init")
         case .listenerShowConfirm:
             return L10n.tr("status.next_action_show_confirm")
+        case .listenerWaitForConnection:
+            return viewModel.transportMode == .webRtc
+                ? L10n.tr("status.next_action_wait_connection_code")
+                : L10n.tr("status.next_action_udp_wait_connection_code")
         }
     }
 
@@ -320,7 +498,7 @@ struct ContentView: View {
     }
 
     private enum ScanTarget: String, Identifiable {
-        case initPayload
+        case listenerInput
         case confirmPayload
 
         var id: String { rawValue }
@@ -386,6 +564,50 @@ private struct VerificationCodeBlock: View {
     }
 }
 
+private struct PayloadInputPanel: View {
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ZStack(alignment: .topLeading) {
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(placeholder)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 14)
+                }
+                TextEditor(text: $text)
+                    .font(.caption.monospaced())
+                    .frame(minHeight: 120)
+                    .padding(6)
+                    .background(Color.clear)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            )
+
+            HStack {
+                Spacer()
+                Text(L10n.tr("common.char_count_format", text.count))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 private struct ConnectionCodePanel: View {
     let payloadTitle: String
     let payloadValue: String
@@ -425,6 +647,30 @@ private struct ConnectionCodePanel: View {
             }
 
             ResponsiveQRCode(payload: payloadValue, accessibilityDescription: payloadQrDescription)
+        }
+    }
+}
+
+private struct ExpiryStatusView: View {
+    let expiresAtUnixMs: Int64
+
+    var body: some View {
+        if expiresAtUnixMs > 0 {
+            TimelineView(.periodic(from: Date(), by: 1)) { timeline in
+                let remainingSeconds = max(
+                    Int((expiresAtUnixMs - Int64(timeline.date.timeIntervalSince1970 * 1000)) / 1000),
+                    0
+                )
+                if remainingSeconds > 0 {
+                    Text(L10n.tr("status.expiry_remaining_format", remainingSeconds))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(L10n.tr("status.expiry_expired"))
+                        .font(.caption)
+                        .foregroundStyle(Color(red: 0.74, green: 0.18, blue: 0.22))
+                }
+            }
         }
     }
 }
@@ -510,6 +756,8 @@ private extension ConnectionDiagnostics {
             return L10n.tr("status.hint_network_interface_check")
         case "peer_disconnected":
             return L10n.tr("status.peer_disconnected")
+        case "peer_unreachable":
+            return L10n.tr("status.hint_peer_unreachable")
         default:
             return failureHint
         }
@@ -525,6 +773,39 @@ private extension NetworkPathType {
             return L10n.tr("status.network_path_usb")
         case .unknown:
             return L10n.tr("status.network_path_unknown")
+        }
+    }
+}
+
+private extension TransportMode {
+    var readableLabel: String {
+        switch self {
+        case .webRtc:
+            return L10n.tr("transport_mode_webrtc")
+        case .udpOpus:
+            return L10n.tr("transport_mode_udp")
+        }
+    }
+
+    var descriptionText: String {
+        switch self {
+        case .webRtc:
+            return L10n.tr("transport_mode_webrtc_note")
+        case .udpOpus:
+            return L10n.tr("transport_mode_udp_note")
+        }
+    }
+}
+
+private extension AudioStreamSource {
+    var readableLabel: String {
+        switch self {
+        case .none:
+            return L10n.tr("audio_diagnostics.source_none")
+        case .webRtcReceive:
+            return L10n.tr("audio_diagnostics.source_webrtc")
+        case .udpOpusReceive:
+            return L10n.tr("audio_diagnostics.source_udp")
         }
     }
 }

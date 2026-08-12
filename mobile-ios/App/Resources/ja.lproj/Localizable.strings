@@ -1,16 +1,18 @@
 "main.title" = "Audio Link";
-"main.subtitle" = "近くの2台をQRのみで接続します。";
-"main.capture_hint" = "iOSでは、画面ブロードキャストで取得したアプリ音声のみ共有できます。";
+"main.subtitle" = "Android 版に合わせた接続方式で近くの音声を受信します。";
 
 "action.start_sender" = "共有を開始";
-"action.start_listener_scan" = "送信側QRを読む";
+"action.start_listener" = "受信を開始";
 "action.stop_session" = "停止";
 "action.copy_payload" = "ペイロードをコピー";
 "action.close" = "閉じる";
 "action.open_logs" = "ログ";
+"action.paste_from_clipboard" = "クリップボードから貼り付け";
+"action.scan_qr" = "QRを読む";
 
 "status.connection_title" = "接続状態";
 "status.session_id" = "セッションID";
+"status.transport_mode_title" = "転送モード";
 "status.network_path_title" = "接続経路";
 "status.network_path_wifi" = "Wi-Fi / LAN";
 "status.network_path_usb" = "USBテザリング";
@@ -18,34 +20,47 @@
 "status.local_candidates_format" = "ローカル host ICE 候補: %d";
 "status.selected_pair_format" = "選択された候補ペア: %@";
 "status.failure_hint_format" = "ヒント: %@";
-"status.ready" = "下の開始アクションを選んでください。";
+"status.ready" = "転送モードを選び、「受信を開始」または「共有を開始」を押してください。";
 "status.receiving_remote_audio" = "相手の音声を受信しています";
-"status.start_broadcast_first" = "先に画面ブロードキャストを開始してから、共有を開始してください。";
+"status.start_broadcast_first" = "先に画面ブロードキャストを開始してから、「共有を開始」を押してください。";
 "status.capturing_replaykit_audio" = "音声共有の準備中";
-"status.listener_ready_to_scan" = "送信側のinit QRを読み取ってください。";
-"status.init_generated" = "init QRを作成しました。受信側で読み取ってください。";
-"status.confirm_generated" = "confirm QRを作成しました。送信側に表示してください。";
-"status.verification_ready" = "両端末の6桁コードが一致するか確認してください。";
-"status.verification_mismatch" = "照合コードが一致しません。Step 1からやり直してください。";
+"status.listener_ready_to_scan_or_paste" = "送信側 init ペイロードまたは Windows の接続コードを貼り付けるか、QR を読み取ってください。";
+"status.udp_listener_ready_to_scan_or_paste" = "Windows の UDP + Opus 接続コードを貼り付けるか、QR として共有された場合は読み取ってください。";
+"status.init_generated" = "init ペイロードを作成しました。受信側へ共有してください。";
+"status.confirm_generated" = "confirm ペイロードを作成しました。送信側へ返してください。";
+"status.verification_ready" = "両端末の 6 桁コードが一致するか確認してください。";
+"status.verification_mismatch" = "照合コードが一致しません。Step 1 からやり直してください。";
 "status.answer_applied" = "照合が完了しました。接続を確定します。";
 "status.session_ended" = "接続を停止しました";
 "status.peer_disconnected" = "相手端末の接続が切れました";
 "status.ice_connection_failed" = "直接接続を確立できませんでした";
+"status.connection_code_connecting" = "confirm を Windows へ送信しました。接続完了を待っています。";
+"status.udp_connection_code_connecting" = "受信情報を Windows へ送信しました。UDP + Opus 音声の開始を待っています。";
+"status.udp_waiting_for_connection" = "Windows からの UDP + Opus 音声を待っています。";
+"status.udp_receiving_audio" = "Windows の音声を UDP + Opus で受信しています";
+"status.udp_ready" = "UDP + Opus 受信モードの準備ができました。Windows の接続コードを貼り付けて開始してください。";
+"status.udp_sender_unavailable" = "iOS では UDP + Opus 送信モードを使えません。Windows -> iPhone の再生には「受信を開始」を使ってください。";
+"status.expiry_remaining_format" = "有効期限まで %d 秒";
+"status.expiry_expired" = "有効期限切れ";
 "status.next_action_title" = "次にやること";
-"status.next_action_entry" = "「共有を開始」または「送信側QRを読む」を押してください。";
-"status.next_action_show_init" = "init QRを表示し、受信側に読み取ってもらってください。";
-"status.next_action_scan_init" = "送信側のinit QRを読み取ってください。";
-"status.next_action_show_confirm" = "confirm QRと6桁コードを送信側に見せてください。";
-"status.next_action_verify" = "両端末の6桁コードが一致することを確認してください。";
-"status.next_action_connected" = "接続済みです。共有中はこの画面を開いたままにしてください。";
+"status.next_action_entry" = "転送モードを選んでから、「受信を開始」または「共有を開始」を押してください。";
+"status.next_action_show_init" = "init ペイロードを共有し、受信側からの confirm を待ってください。";
+"status.next_action_scan_init" = "送信側 init ペイロードまたは Windows 接続コードを貼り付けるか、QR を読み取ってください。";
+"status.next_action_udp_scan_init" = "Windows の UDP + Opus 接続コードを貼り付けるか、QR を読み取ってください。";
+"status.next_action_show_confirm" = "confirm ペイロードを共有し、6 桁コードを確認してください。";
+"status.next_action_verify" = "両端末で同じ 6 桁コードが表示されることを確認してください。";
+"status.next_action_wait_connection_code" = "Windows 側の接続完了を待ってください。Windows にコードが出る場合は照合してください。";
+"status.next_action_udp_wait_connection_code" = "この画面を開いたまま、Windows の音声開始を待ってください。";
+"status.next_action_connected" = "接続済みです。受信中はこの画面を開いたままにしてください。";
 "status.next_action_start_broadcast" = "コントロールセンターで画面ブロードキャストを開始してから、「共有を開始」を押してください。";
-"status.next_action_restart" = "Step 1からやり直してください。";
-"status.next_action_usb_enable_tethering" = "USBテザリングを有効にしてケーブルを再接続し、Step 1から再開してください。";
-"status.next_action_usb_replug" = "USBテザリングは検出されましたが到達できません。ケーブル再接続と信頼/テザリング設定を確認してください。";
-"status.next_action_check_interface" = "利用可能なhostネットワークインターフェースがありません。Wi-FiまたはUSBテザリング設定を確認してください。";
-"status.hint_usb_tether_check" = "USBケーブル、信頼ダイアログ、USBテザリング設定を確認してください。";
+"status.next_action_restart" = "Step 1 からやり直してください。";
+"status.next_action_usb_enable_tethering" = "USB テザリング / USB 経由の Personal Hotspot を有効にしてケーブルを再接続し、再開してください。";
+"status.next_action_usb_replug" = "USB テザリングは検出されましたが到達できません。ケーブル再接続と信頼 / テザリング設定を確認してください。";
+"status.next_action_check_interface" = "利用可能なローカルネットワークインターフェースがありません。Wi-Fi または USB テザリング設定を確認してください。";
+"status.hint_usb_tether_check" = "USB ケーブル、信頼ダイアログ、USB テザリング / Personal Hotspot 設定を確認してください。";
 "status.hint_wifi_check" = "両端末が同一ローカルネットワークにいることを確認してください。";
-"status.hint_network_interface_check" = "利用可能なhostネットワークインターフェースが見つかりません。";
+"status.hint_network_interface_check" = "利用可能な host ネットワークインターフェースが見つかりません。";
+"status.hint_peer_unreachable" = "ローカルネットワーク上で Windows ピアへ到達できませんでした。";
 
 "stream_state.idle" = "待機中";
 "stream_state.capturing" = "準備中";
@@ -55,23 +70,69 @@
 "stream_state.failed" = "対応が必要";
 "stream_state.ended" = "停止済み";
 
-"flow.entry.title" = "Step 1: 開始方法を選ぶ";
-"flow.entry.description" = "手入力は廃止しました。QR読み取りのみで接続します。";
+"transport_mode_title" = "転送モード";
+"transport_mode_webrtc" = "WebRTC";
+"transport_mode_udp" = "UDP + Opus";
+"transport_mode_webrtc_note" = "標準の v2 offer/answer フローです。受信側は送信側 init ペイロードか Windows 接続コードを取り込めます。";
+"transport_mode_udp_note" = "Android 版と同じ Windows -> モバイル向け UDP + Opus 接続コードフローで受信します。iOS はリスナーとして動作します。";
+"transport_mode_udp_sender_note" = "Android と同様に、iOS では UDP + Opus 送信モードは使えません。";
 
-"flow.sender.step_title" = "Step 2: init QRを表示";
-"flow.sender.step_description" = "受信側がこのQRを読んだ後、受信側のconfirm QRを読み取ります。";
+"receiver_latency_title" = "受信レイテンシ";
+"receiver_latency_note" = "セッション開始前に選択してください。低いほど低遅延、高いほど安定性重視です。";
+"receiver_latency_selected_format" = "選択中: %@";
+"receiver_latency_20" = "20 ms";
+"receiver_latency_20_description" = "最も低遅延です。安定した LAN / USB 経路向けです。";
+"receiver_latency_50" = "50 ms";
+"receiver_latency_50_description" = "既定値です。Wi-Fi と USB の両方でバランスが取りやすい設定です。";
+"receiver_latency_100" = "100 ms";
+"receiver_latency_100_description" = "やや不安定な回線でも余裕を持ちやすい設定です。";
+"receiver_latency_300" = "300 ms";
+"receiver_latency_300_description" = "最も安定性を優先し、そのぶん遅延は大きくなります。";
+
+"audio_diagnostics.title" = "音声診断";
+"audio_diagnostics.source_none" = "未受信";
+"audio_diagnostics.source_webrtc" = "WebRTC PCM";
+"audio_diagnostics.source_udp" = "UDP + Opus";
+"audio_diagnostics.source_format" = "入力元: %@";
+"audio_diagnostics.format_format" = "形式: %d Hz / %d ch / %d-bit";
+"audio_diagnostics.queue_format" = "キュー: %d / %d フレーム (目標 %d)";
+"audio_diagnostics.frames_format" = "再生済み: %lld、デコード済み: %lld";
+"audio_diagnostics.drops_format" = "ドロップ - stale: %lld、overflow: %lld";
+
+"flow.entry.title" = "Step 1: 接続方法を選ぶ";
+"flow.entry.description" = "Android 版に合わせて WebRTC または UDP + Opus を選び、この iPhone から共有するか、他端末の音声を受信します。";
+
+"flow.sender.step_title" = "Step 2: init ペイロードを共有";
+"flow.sender.step_description" = "このペイロードを受信側へ共有してください。対応する端末では QR 読み取りまたはテキスト貼り付けで取り込めます。";
 "flow.sender.scan_button" = "confirm QRを読む";
-"flow.sender.payload_title" = "あなたのinit QRペイロード";
-"flow.sender.qr_description" = "送信側のinit QR";
-"flow.sender.waiting_code" = "共有開始後にinit QRが表示されます。";
+"flow.sender.payload_title" = "あなたの init ペイロード";
+"flow.sender.qr_description" = "送信側の init QR";
+"flow.sender.waiting_code" = "共有開始後に init ペイロードがここへ表示されます。";
 
-"flow.receiver.step_title" = "Step 2: 送信側init QRを読む";
-"flow.receiver.step_description" = "開始アクションから送信側init QRを読み取ってください。";
-"flow.receiver.waiting_code" = "送信側init QRの読み取り待ちです。";
-"flow.receiver.confirm_title" = "Step 3: confirm QRを表示";
-"flow.receiver.confirm_description" = "このQRと6桁コードを送信側に見せてください。";
-"flow.receiver.payload_title" = "あなたのconfirm QRペイロード";
-"flow.receiver.qr_description" = "受信側のconfirm QR";
+"flow.receiver.confirm_title" = "Step 3: confirm ペイロードを共有";
+"flow.receiver.confirm_description" = "このペイロードを送信側へ返し、6 桁コードを照合してください。";
+"flow.receiver.payload_title" = "あなたの confirm ペイロード";
+"flow.receiver.qr_description" = "受信側の confirm QR";
+
+"flow.listener_input.title" = "Step 2: 送信側または Windows コードを入力";
+"flow.listener_input.description" = "送信側 init ペイロードまたは Windows の WebRTC 接続コードを貼り付けてください。QR として共有された場合は読み取りもできます。";
+"flow.listener_input.payload_title" = "init ペイロード / 接続コード";
+"flow.listener_input.placeholder" = "送信側 init ペイロードまたは Windows 接続コードをここへ貼り付けてください。";
+"flow.listener_input.apply" = "confirm を作成";
+
+"flow.udp_listener_input.title" = "Step 2: Windows UDP コードを入力";
+"flow.udp_listener_input.description" = "Windows の UDP + Opus 接続コードを貼り付けてください。iPhone が受信ソケットを開き、自動で受信情報を返します。";
+"flow.udp_listener_input.payload_title" = "UDP + Opus 接続コード";
+"flow.udp_listener_input.placeholder" = "Windows の UDP + Opus 接続コードをここへ貼り付けてください。";
+"flow.udp_listener_input.apply" = "UDP 受信を開始";
+
+"flow.listener_wait_connection.title" = "Step 3: Windows 接続待ち";
+"flow.listener_wait_connection.description" = "confirm は自動で返送済みです。Windows 側が WebRTC 接続を仕上げています。";
+"flow.listener_wait_connection.hint" = "この画面を開いたまま待ってください。Windows に照合コードが表示される場合は一致を確認してください。";
+
+"flow.udp_listener_wait_connection.title" = "Step 3: UDP 音声待ち";
+"flow.udp_listener_wait_connection.description" = "受信情報を Windows へ送信済みです。Windows が送信を開始すると自動で再生が始まります。";
+"flow.udp_listener_wait_connection.hint" = "Windows 音声を待つ間はこの画面を開いたままにしてください。";
 
 "flow.verification.title" = "Step 3: 6桁コード照合";
 "flow.verification.description" = "両端末で同じコードが表示される場合のみ接続します。";
@@ -79,8 +140,9 @@
 "flow.verification.match" = "一致している";
 "flow.verification.mismatch" = "一致しない";
 
-"toast.init_payload_copied" = "initペイロードをコピーしました。";
-"toast.confirm_payload_copied" = "confirmペイロードをコピーしました。";
+"toast.init_payload_copied" = "init ペイロードをコピーしました。";
+"toast.confirm_payload_copied" = "confirm ペイロードをコピーしました。";
+"toast.listener_input_pasted" = "クリップボードから貼り付けました。";
 
 "common.char_count_format" = "%d 文字";
 
@@ -89,21 +151,32 @@
 "log.copy_all" = "すべてコピー";
 "log.clear" = "クリア";
 
-"error.failed_encode_offer" = "init QRペイロードを作成できませんでした";
-"error.failed_encode_answer" = "confirm QRペイロードを作成できませんでした";
+"error.failed_encode_offer" = "init ペイロードを作成できませんでした";
+"error.failed_encode_answer" = "confirm ペイロードを作成できませんでした";
 "error.webrtc_negotiation_failed" = "直接接続を確立できませんでした。";
-"error.invalid_init_payload" = "init QRペイロードが不正です";
-"error.invalid_confirm_payload" = "confirm QRペイロードが不正です";
-"error.apply_answer_failed" = "confirmペイロードを適用できませんでした";
-"error.session_expired" = "QRペイロードの有効期限が切れています";
-"error.invalid_payload" = "QRペイロードが不正です";
-"error.offer_nil" = "initペイロードが見つかりません";
-"error.local_offer_missing" = "ローカルinit SDPがありません";
+"error.invalid_init_payload" = "init ペイロードが不正です";
+"error.invalid_confirm_payload" = "confirm ペイロードが不正です";
+"error.apply_answer_failed" = "confirm ペイロードを適用できませんでした";
+"error.session_expired" = "ペイロードまたは接続コードの有効期限が切れています";
+"error.invalid_payload" = "ペイロードが不正です";
+"error.offer_nil" = "init ペイロードが見つかりません";
+"error.local_offer_missing" = "ローカル init SDP がありません";
 "error.ice_gather_timeout" = "接続準備がタイムアウトしました";
-"error.answer_nil" = "confirmペイロードが見つかりません";
-"error.local_answer_missing" = "ローカルconfirm SDPがありません";
+"error.answer_nil" = "confirm ペイロードが見つかりません";
+"error.local_answer_missing" = "ローカル confirm SDP がありません";
 "error.peer_connection_unavailable" = "接続エンジンが利用できません";
 "error.data_channel_create_failed" = "音声チャネルの作成に失敗しました";
-"error.usb_tether_unavailable" = "USBテザリング経路が利用できません。USBテザリングを有効化して再接続してください。";
-"error.usb_tether_not_reachable" = "USBテザリング経路は検出されましたが接続に失敗しました。再接続と信頼設定を確認してください。";
-"error.network_interface_not_usable" = "host ICE候補に使えるローカルネットワークインターフェースが見つかりません。";
+"error.usb_tether_unavailable" = "USB テザリング経路が利用できません。テザリングを有効化して再接続してください。";
+"error.usb_tether_not_reachable" = "USB テザリングは検出されましたが接続できません。再接続と信頼設定を確認してください。";
+"error.network_interface_not_usable" = "host ICE 候補に使えるローカルネットワークインターフェースが見つかりません。";
+"error.invalid_connection_code" = "Windows 接続コードが不正です";
+"error.connection_code_required" = "iOS の UDP + Opus 受信には Windows 接続コードが必要です";
+"error.peer_unreachable" = "ローカルネットワーク上で Windows ピアへ到達できませんでした。";
+"error.peer_unreachable_http" = "接続コード交換中に Windows ピアが HTTP %d を返しました。";
+"error.invalid_udp_init_payload" = "UDP init ペイロードが不正です";
+"error.invalid_udp_confirm_payload" = "UDP confirm ペイロードが不正です";
+"error.audio_playback_unavailable" = "この iPhone では音声再生の準備に失敗しました。";
+"error.udp_listener_start_failed" = "この iPhone で UDP 受信ソケットを開けませんでした。";
+"error.udp_receive_failed" = "Windows 音声待機中の UDP 受信に失敗しました。";
+"error.udp_decode_failed" = "Windows からの UDP + Opus 音声のデコードに失敗しました。";
+"error.opus_decoder_unavailable" = "この iPhone では Opus デコードを利用できません。";

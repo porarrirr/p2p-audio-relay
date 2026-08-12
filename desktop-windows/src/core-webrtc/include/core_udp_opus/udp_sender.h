@@ -11,6 +11,11 @@ struct OpusEncoder;
 
 namespace core_udp_opus {
 
+enum class opus_application {
+    restricted_lowdelay = 0,
+    audio = 1
+};
+
 struct diagnostics {
     std::string path_type;
     int local_candidates_count = 0;
@@ -29,6 +34,7 @@ public:
     ~udp_sender();
 
     start_result start_streaming(const std::string& remote_host, int remote_port);
+    void set_application(opus_application application);
     bool send_pcm16(
         const std::int16_t* pcm,
         std::size_t samples_per_channel,
@@ -70,6 +76,7 @@ private:
     std::uint32_t sequence_ = 0;
     int encoder_sample_rate_ = 0;
     int encoder_channels_ = 0;
+    opus_application application_ = opus_application::restricted_lowdelay;
 };
 
 }  // namespace core_udp_opus

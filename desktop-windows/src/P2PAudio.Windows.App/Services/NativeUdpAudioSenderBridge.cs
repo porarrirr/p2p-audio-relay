@@ -13,6 +13,8 @@ public sealed class NativeUdpAudioSenderBridge : IUdpAudioSenderBridge, IDisposa
 
     public NativeUdpAudioSenderBridge()
     {
+        NativeUdpOpusLibraryResolver.EnsureRegistered();
+        NativeWebRtcLibraryResolver.EnsureLoaded(NativeUdpOpusLibraryResolver.DllBaseName);
         _handle = NativeUdpOpusNativeMethods.core_udp_opus_create();
         if (_handle == 0)
         {
@@ -35,13 +37,18 @@ public sealed class NativeUdpAudioSenderBridge : IUdpAudioSenderBridge, IDisposa
         }
     }
 
-    public Task<UdpAudioSenderResult> StartStreamingAsync(string remoteHost, int remotePort, string remoteServiceName)
+    public Task<UdpAudioSenderResult> StartStreamingAsync(
+        string remoteHost,
+        int remotePort,
+        string remoteServiceName,
+        UdpOpusApplication application)
     {
         EnsureNotDisposed();
         var native = NativeUdpOpusNativeMethods.core_udp_opus_start_streaming(
             _handle,
             remoteHost ?? string.Empty,
-            remotePort
+            remotePort,
+            (int)application
         );
         try
         {
@@ -262,7 +269,11 @@ internal static class NativeUdpOpusNativeMethods
     internal static extern void core_udp_opus_destroy(nint handle);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    internal static extern core_udp_opus_start_result core_udp_opus_start_streaming(nint handle, string remoteHost, int remotePort);
+    internal static extern core_udp_opus_start_result core_udp_opus_start_streaming(
+        nint handle,
+        string remoteHost,
+        int remotePort,
+        int application);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern int core_udp_opus_send_pcm16(

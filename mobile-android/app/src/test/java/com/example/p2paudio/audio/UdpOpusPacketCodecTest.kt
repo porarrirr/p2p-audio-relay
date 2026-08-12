@@ -1,5 +1,6 @@
 package com.example.p2paudio.audio
 
+import com.example.p2paudio.transport.UdpOpusListenerTransport
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -38,5 +39,13 @@ class UdpOpusPacketCodecTest {
         val decoded = UdpOpusPacketCodec.decode(raw)
 
         assertNull(decoded)
+    }
+
+    @Test
+    fun listenerTransportBufferCanHoldMaximumWindowsPacket() {
+        assertEquals(
+            UdpOpusPacketCodec.HEADER_BYTES + UdpOpusListenerTransport.MAX_OPUS_PAYLOAD_BYTES,
+            UdpOpusListenerTransport.MAX_PACKET_BYTES
+        )
     }
 }

@@ -966,6 +966,36 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task Shutdown_StopsRunningUdpLoopbackSender()
+    {
+        var udpBridge = new FakeUdpAudioSenderBridge();
+        var udpLoopbackSender = new FakeLoopbackAudioSender();
+        var connectionCodeFactory = new FakeConnectionCodeSessionFactory();
+        var viewModel = CreateViewModel(
+            udpBridge: udpBridge,
+            connectionCodeSessionFactory: connectionCodeFactory,
+            udpLoopbackSender: udpLoopbackSender
+        );
+        viewModel.SelectTransportMode(TransportMode.UdpOpus);
+
+        await viewModel.StartSenderAsync();
+        var sessionId = QrPayloadCodec.DecodeUdpInit(viewModel.CurrentPayload).SessionId;
+        connectionCodeFactory.ActiveSession!.CompleteConfirm(
+            MakeUdpConfirmPayload(sessionId),
+            remoteAddress: "192.168.10.42"
+        );
+
+        await WaitUntilAsync(() => viewModel.CurrentStreamState == StreamState.Streaming, TimeSpan.FromSeconds(2));
+        Assert.True(udpLoopbackSender.IsRunning);
+
+        viewModel.Shutdown();
+
+        Assert.False(udpLoopbackSender.IsRunning);
+        Assert.True(udpLoopbackSender.StopCalls > 0);
+        Assert.False(udpBridge.IsStreaming);
+    }
+
+    [Fact]
     public async Task InitializeAsync_WhenShutdownBeforeDeferredStartupCompletes_DisposesStartupBridge()
     {
         var startupGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

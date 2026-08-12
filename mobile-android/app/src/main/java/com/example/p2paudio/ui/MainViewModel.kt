@@ -2,6 +2,7 @@ package com.example.p2paudio.ui
 
 import android.Manifest
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
@@ -13,6 +14,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.p2paudio.R
 import com.example.p2paudio.audio.AndroidPcmPlayer
 import com.example.p2paudio.audio.AndroidPcmSender
+import com.example.p2paudio.audio.PlaybackBufferConfig
+import com.example.p2paudio.audio.PlaybackLatencyPreset
 import com.example.p2paudio.capture.AndroidAudioCaptureManager
 import com.example.p2paudio.capture.AudioCaptureRuntime
 import com.example.p2paudio.logging.AppLogger
@@ -32,6 +35,7 @@ import com.example.p2paudio.protocol.ConnectionCodeCodec
 import com.example.p2paudio.protocol.PairingPayloadValidator
 import com.example.p2paudio.protocol.QrPayloadCodec
 import com.example.p2paudio.protocol.VerificationCode
+import com.example.p2paudio.service.AudioReceiveService
 import com.example.p2paudio.service.AudioSendService
 import com.example.p2paudio.transport.PairingAudioTransport
 import com.example.p2paudio.transport.TransportMode
@@ -51,24 +55,22 @@ import kotlinx.coroutines.launch
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val captureRuntime = AudioCaptureRuntime
-    private val pcmPlayer = AndroidPcmPlayer(
-        source = AudioStreamSource.WEBRTC_RECEIVE,
-        diagnosticsListener = ::onAudioStreamDiagnosticsChanged
+    private val receiverLatencyPreferences = application.getSharedPreferences(
+        RECEIVER_LATENCY_PREFERENCES_NAME,
+        Context.MODE_PRIVATE
     )
-    private val udpPcmPlayer = AndroidPcmPlayer(
-        source = AudioStreamSource.UDP_OPUS_RECEIVE,
-        startupPrebufferFrames = 2,
-        steadyPrebufferFrames = 2,
-        maxQueueFrames = 12,
-        minTrackBufferFrames = 6,
-        diagnosticsListener = ::onAudioStreamDiagnosticsChanged
-    )
+    private val initialReceiverLatencyPreset = loadReceiverLatencyPreset()
+    private var pcmPlayer = createWebRtcPcmPlayer(initialReceiverLatencyPreset)
+    private var udpPcmPlayer = createUdpPcmPlayer(initialReceiverLatencyPreset)
     private var pcmSender: AndroidPcmSender? = null
     private var playbackMessageShown = false
     private var waitingForCaptureServiceStart = false
 
     private val _uiState = MutableStateFlow(
-        MainUiState(statusMessage = text(R.string.status_ready))
+        MainUiState(
+            statusMessage = text(R.string.status_ready),
+            receiverLatencyPreset = initialReceiverLatencyPreset
+        )
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
@@ -136,8 +138,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         },
-        pcmFrameListener = { frame ->
-            onRemoteFrameReceived(frame, udpPcmPlayer, text(R.string.status_udp_receiving_audio))
+        pcmFrameListener = { frame, arrivalRealtimeMs ->
+            onRemoteFrameReceived(
+                frame = frame,
+                player = udpPcmPlayer,
+                statusMessage = text(R.string.status_udp_receiving_audio),
+                arrivalRealtimeMs = arrivalRealtimeMs
+            )
         },
         diagnosticsListener = { diagnostics ->
             _uiState.update { it.copy(connectionDiagnostics = diagnostics) }
@@ -315,6 +322,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onCaptureServiceStartFailed(cause)
     }
 
+    fun onUdpReceiveServiceStartFailed(error: Throwable) {
+        AppLogger.e(
+            "MainViewModel",
+            "udp_receive_service_start_failed",
+            "Failed to start receiver foreground service",
+            context = mapOf("reason" to (error.message ?: "unknown")),
+            throwable = error
+        )
+        recoverToEntry(
+            SessionFailure(
+                FailureCode.WEBRTC_NEGOTIATION_FAILED,
+                error.message ?: text(R.string.error_webrtc_negotiation_failed)
+            )
+        )
+    }
+
     private fun onCaptureServiceStarted() {
         if (!waitingForCaptureServiceStart) {
             return
@@ -398,6 +421,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     negotiationFailure(it, text(R.string.error_create_offer_failed))
                 )
             }
+        }
+    }
+
+    fun selectReceiverLatencyPreset(preset: PlaybackLatencyPreset) {
+        val current = _uiState.value
+        if (current.receiverLatencyPreset == preset) {
+            return
+        }
+        if (current.setupStep != SetupStep.ENTRY || current.streamState != AudioStreamState.IDLE) {
+            return
+        }
+
+        AppLogger.i(
+            "MainViewModel",
+            "receiver_latency_preset_changed",
+            "Updated Android receiver latency preset",
+            context = mapOf(
+                "from" to current.receiverLatencyPreset.name,
+                "to" to preset.name
+            )
+        )
+
+        pcmPlayer.stop()
+        udpPcmPlayer.stop()
+        playbackMessageShown = false
+        pcmPlayer = createWebRtcPcmPlayer(preset)
+        udpPcmPlayer = createUdpPcmPlayer(preset)
+        saveReceiverLatencyPreset(preset)
+        _uiState.update {
+            it.copy(
+                receiverLatencyPreset = preset,
+                audioStreamDiagnostics = AudioStreamDiagnostics()
+            )
         }
     }
 
@@ -524,6 +580,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             return
         }
+
+        requestStartUdpReceiveService()
 
         val confirmPayload = UdpConfirmPayload(
             sessionId = init.sessionId,
@@ -958,6 +1016,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         captureRuntime.stop()
         peerController.close()
         udpListenerTransport.close()
+        stopUdpReceiveServiceDirectly()
+        requestStopUdpReceiveService()
         stopProjectionServiceDirectly()
         requestStopProjectionService()
         _uiState.value = entryState(statusMessage = text(R.string.status_session_ended))
@@ -1023,6 +1083,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         captureRuntime.stop()
         peerController.close()
         udpListenerTransport.close()
+        stopUdpReceiveServiceDirectly()
+        requestStopUdpReceiveService()
         stopProjectionServiceDirectly()
         requestStopProjectionService()
         _uiState.value = entryState(statusMessage = statusMessage, failure = failure)
@@ -1033,8 +1095,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         app.stopService(Intent(app, AudioSendService::class.java))
     }
 
+    private fun stopUdpReceiveServiceDirectly() {
+        val app = getApplication<Application>()
+        app.stopService(Intent(app, AudioReceiveService::class.java))
+    }
+
     private fun requestStopProjectionService() {
         viewModelScope.launch { _commands.emit(UiCommand.StopProjectionService) }
+    }
+
+    private fun requestStartUdpReceiveService() {
+        viewModelScope.launch { _commands.emit(UiCommand.StartUdpReceiveService) }
+    }
+
+    private fun requestStopUdpReceiveService() {
+        viewModelScope.launch { _commands.emit(UiCommand.StopUdpReceiveService) }
     }
 
     private fun localizePeerMessage(message: String): String = when (message) {
@@ -1107,6 +1182,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         playbackMessageShown = false
         captureRuntime.stop()
         peerController.close()
+        stopUdpReceiveServiceDirectly()
+        requestStopUdpReceiveService()
         stopProjectionServiceDirectly()
         requestStopProjectionService()
         _uiState.update {
@@ -1131,9 +1208,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun onRemoteFrameReceived(
         frame: com.example.p2paudio.audio.PcmFrame,
         player: AndroidPcmPlayer,
-        statusMessage: String
+        statusMessage: String,
+        arrivalRealtimeMs: Long = android.os.SystemClock.elapsedRealtime()
     ) {
-        player.enqueue(frame)
+        player.enqueue(frame, arrivalRealtimeMs)
         if (!playbackMessageShown) {
             playbackMessageShown = true
             AppLogger.i(
@@ -1158,15 +1236,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return MainUiState(
             statusMessage = statusMessage,
             failure = failure,
-            transportMode = _uiState.value.transportMode
+            transportMode = _uiState.value.transportMode,
+            receiverLatencyPreset = _uiState.value.receiverLatencyPreset
         )
+    }
+
+    private fun createWebRtcPcmPlayer(preset: PlaybackLatencyPreset): AndroidPcmPlayer {
+        return createPcmPlayer(
+            source = AudioStreamSource.WEBRTC_RECEIVE,
+            config = preset.webrtcConfig
+        )
+    }
+
+    private fun createUdpPcmPlayer(preset: PlaybackLatencyPreset): AndroidPcmPlayer {
+        return createPcmPlayer(
+            source = AudioStreamSource.UDP_OPUS_RECEIVE,
+            config = preset.udpOpusConfig
+        )
+    }
+
+    private fun createPcmPlayer(
+        source: AudioStreamSource,
+        config: PlaybackBufferConfig
+    ): AndroidPcmPlayer {
+        return AndroidPcmPlayer(
+            source = source,
+            startupPrebufferFrames = config.startupPrebufferFrames,
+            steadyPrebufferFrames = config.steadyPrebufferFrames,
+            maxQueueFrames = config.maxQueueFrames,
+            minTrackBufferFrames = config.minTrackBufferFrames,
+            diagnosticsListener = ::onAudioStreamDiagnosticsChanged
+        )
+    }
+
+    private fun loadReceiverLatencyPreset(): PlaybackLatencyPreset {
+        return PlaybackLatencyPreset.fromStorageValue(
+            receiverLatencyPreferences.getString(RECEIVER_LATENCY_PREFERENCE_KEY, null)
+        )
+    }
+
+    private fun saveReceiverLatencyPreset(preset: PlaybackLatencyPreset) {
+        receiverLatencyPreferences
+            .edit()
+            .putString(RECEIVER_LATENCY_PREFERENCE_KEY, preset.name)
+            .apply()
     }
 
     sealed interface UiCommand {
         object RequestRecordAudioPermission : UiCommand
         data class RequestProjectionPermission(val captureIntent: Intent) : UiCommand
         data class StartProjectionService(val permissionResultData: Intent) : UiCommand
+        object StartUdpReceiveService : UiCommand
         object StopProjectionService : UiCommand
+        object StopUdpReceiveService : UiCommand
     }
 
     private enum class PayloadRole {
@@ -1176,6 +1298,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val PAYLOAD_TTL_MS = 600_000L
+        private const val RECEIVER_LATENCY_PREFERENCES_NAME = "playback_preferences"
+        private const val RECEIVER_LATENCY_PREFERENCE_KEY = "receiver_latency_preset"
     }
 }
 

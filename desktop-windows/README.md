@@ -39,8 +39,9 @@ This module contains the Windows implementation for the shared v2 pairing/audio 
     - `cmake -S src/core-webrtc -B out/core-webrtc -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake -DVCPKG_MANIFEST_MODE=OFF -DVCPKG_INSTALLED_DIR=<repo>\desktop-windows\vcpkg_installed -DVCPKG_TARGET_TRIPLET=x64-windows -DP2PAUDIO_USE_LIBDATACHANNEL=ON`
     - `cmake --build out/core-webrtc --config Release`
 3. Build managed app:
-    - `dotnet build src/P2PAudio.Windows.App/P2PAudio.Windows.App.csproj -c Release -r win10-x64 -p:Platform=x64`
+    - `dotnet build src/P2PAudio.Windows.App/P2PAudio.Windows.App.csproj -c Release -r win-x64 -p:Platform=x64`
     - The app project includes `out/core-webrtc/p2paudio_core_udp_opus.dll`, `vcpkg_installed/x64-windows/bin/opus.dll`, and `vcpkg_installed/x64-windows/bin/portaudio.dll` in the app output when those files exist.
+    - The repository root `run-app.ps1` launcher searches `src/P2PAudio.Windows.App/bin` and starts the newest `P2PAudio.Windows.App.exe`, so Start Menu shortcuts do not need to be repointed to every new build path.
 
 ## Runtime behavior
 
@@ -48,6 +49,9 @@ This module contains the Windows implementation for the shared v2 pairing/audio 
 - If native bridge load fails, app enters failed state and blocks connection flow.
 - Development-only stub can be enabled with `ALLOW_STUB_FOR_DEV=1`.
 - UDP + Opus mode requires the native UDP sender DLL and Opus runtime from `vcpkg_installed/x64-windows/bin/` to be copied beside the app.
+- The Windows resolver loads native dependencies from `runtimes\win-x64\native` before loading the primary WebRTC / UDP bridge DLLs.
+- The Start Menu shortcut targets `run-app.ps1`, which resolves the newest available Windows app build under `src/P2PAudio.Windows.App/bin`.
+- On startup, the app also repairs any existing `P2PAudio.lnk` shortcuts in the user or common Start Menu folders so older shortcuts are repointed to the launcher.
 
 ## Notes
 

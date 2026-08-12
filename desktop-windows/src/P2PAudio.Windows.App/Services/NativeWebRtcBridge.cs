@@ -17,6 +17,8 @@ public sealed class NativeWebRtcBridge : IWebRtcBridge, IDisposable
 
     public NativeWebRtcBridge()
     {
+        NativeWebRtcLibraryResolver.EnsureRegistered();
+        NativeWebRtcLibraryResolver.EnsureLoaded("p2paudio_core_webrtc");
         _handle = NativeMethods.core_webrtc_create();
         if (_handle == 0)
         {

@@ -51,3 +51,57 @@ struct PairingConfirmPayload: Codable {
         self.expiresAtUnixMs = expiresAtUnixMs
     }
 }
+
+struct UdpInitPayload: Codable {
+    let version: String
+    let phase: String
+    let transport: String
+    let sessionId: String
+    let senderDeviceName: String
+    let expiresAtUnixMs: Int64
+
+    init(
+        sessionId: String,
+        senderDeviceName: String,
+        expiresAtUnixMs: Int64
+    ) {
+        self.version = "2"
+        self.phase = "udp_init"
+        self.transport = "udp_opus"
+        self.sessionId = sessionId
+        self.senderDeviceName = senderDeviceName
+        self.expiresAtUnixMs = expiresAtUnixMs
+    }
+}
+
+struct UdpConfirmPayload: Codable {
+    let version: String
+    let phase: String
+    let transport: String
+    let sessionId: String
+    let receiverDeviceName: String
+    let receiverPort: Int
+    let expiresAtUnixMs: Int64
+
+    init(
+        sessionId: String,
+        receiverDeviceName: String,
+        receiverPort: Int,
+        expiresAtUnixMs: Int64
+    ) {
+        self.version = "2"
+        self.phase = "udp_confirm"
+        self.transport = "udp_opus"
+        self.sessionId = sessionId
+        self.receiverDeviceName = receiverDeviceName
+        self.receiverPort = receiverPort
+        self.expiresAtUnixMs = expiresAtUnixMs
+    }
+}
+
+struct ConnectionCodePayload: Equatable {
+    let host: String
+    let port: Int
+    let token: String
+    let expiresAtUnixMs: Int64
+}

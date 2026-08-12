@@ -14,6 +14,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private const int ReceiveLoopIdleDelayMs = 5;
     private const int ReceiveHealthCheckIdleTicks = 100;
     private const long ReceiveStatsLogIntervalMs = 5_000;
+    private const int DefaultUdpOpusFrameDurationMs = 20;
+    private const int ShortUdpOpusFrameDurationMs = 5;
+    private const int MediumUdpOpusFrameDurationMs = 10;
+    private const int LongUdpOpusFrameDurationMs = 40;
+    private const int MaxUdpOpusFrameDurationMs = 60;
 
     private IWebRtcBridge _bridge;
     private readonly Func<IWebRtcBridge>? _startupBridgeFactory;
@@ -134,7 +139,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _udpLoopbackSenderFactory = udpLoopbackSenderFactory
             ?? (() => new LoopbackPcmSender(
                 frame => _udpBridge.SendPcmFrame(frame),
-                new LoopbackCaptureOptions(targetSampleRate: 48_000)));
+                CreateUdpLoopbackCaptureOptions()));
         _playbackService = new PcmPlaybackService();
         _backendHealth = CreatePendingBackendHealth();
         _udpBackendHealth = CreateBackendHealth(_udpBridge);
@@ -181,6 +186,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private string audioBufferingLabel = "送出整形: -";
 
     [ObservableProperty]
+    private int selectedUdpOpusFrameDurationMs = DefaultUdpOpusFrameDurationMs;
+
+    [ObservableProperty]
+    private UdpOpusApplication selectedUdpOpusApplication = UdpOpusApplication.RestrictedLowDelay;
+
+    [ObservableProperty]
     private string audioHealthLabel = "統計: -";
 
     [ObservableProperty]
@@ -216,6 +227,23 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public int SelectedTransportModeIndex => SelectedTransportMode == TransportMode.WebRtc ? 0 : 1;
 
+    public int SelectedUdpOpusFrameDurationIndex => SelectedUdpOpusFrameDurationMs switch
+    {
+        ShortUdpOpusFrameDurationMs => 0,
+        MediumUdpOpusFrameDurationMs => 1,
+        DefaultUdpOpusFrameDurationMs => 2,
+        LongUdpOpusFrameDurationMs => 3,
+        MaxUdpOpusFrameDurationMs => 4,
+        _ => 2
+    };
+
+    public int SelectedUdpOpusApplicationIndex => SelectedUdpOpusApplication switch
+    {
+        UdpOpusApplication.RestrictedLowDelay => 0,
+        UdpOpusApplication.Audio => 1,
+        _ => 0
+    };
+
     public string TransportModeLabel => SelectedTransportMode switch
     {
         TransportMode.WebRtc => "転送モード: WebRTC",
@@ -229,6 +257,37 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         TransportMode.UdpOpus => "WebRTC と同じ接続コードの流れで、この PC のメディア音声を Opus + UDP で Android へ低遅延送信します。",
         _ => string.Empty
     };
+
+    public string UdpOpusFrameDurationDescription => SelectedUdpOpusFrameDurationMs switch
+    {
+        ShortUdpOpusFrameDurationMs => "5 ms: 低遅延寄りです。ネットワークやCPU負荷にはやや敏感です。",
+        MediumUdpOpusFrameDurationMs => "10 ms: 遅延と安定性のバランスが取りやすい設定です。",
+        DefaultUdpOpusFrameDurationMs => "20 ms: 既定値です。最も安定しやすく、Android受信側とも合わせやすい設定です。",
+        LongUdpOpusFrameDurationMs => "40 ms: パケット数を減らしやすい一方、遅延は大きくなります。",
+        MaxUdpOpusFrameDurationMs => "60 ms: 1フレームとして使える最大です。遅延はかなり増えますが、最も余裕を持たせやすい設定です。",
+        _ => "20 ms: 既定値です。最も安定しやすく、Android受信側とも合わせやすい設定です。"
+    };
+
+    public string UdpOpusFrameDurationSummary => $"Opus フレーム長: {SelectedUdpOpusFrameDurationMs} ms";
+
+    public string UdpOpusApplicationDescription => SelectedUdpOpusApplication switch
+    {
+        UdpOpusApplication.RestrictedLowDelay => "RESTRICTED_LOWDELAY: 遅延を最優先にした設定です。音楽再生では音質面の余裕が少なめです。",
+        UdpOpusApplication.Audio => "AUDIO: 音楽や一般的な再生音向けの設定です。低遅延より音質バランスを優先します。",
+        _ => "RESTRICTED_LOWDELAY: 遅延を最優先にした設定です。"
+    };
+
+    public string UdpOpusApplicationSummary => SelectedUdpOpusApplication switch
+    {
+        UdpOpusApplication.RestrictedLowDelay => "Opus application: RESTRICTED_LOWDELAY",
+        UdpOpusApplication.Audio => "Opus application: AUDIO",
+        _ => "Opus application: RESTRICTED_LOWDELAY"
+    };
+
+    public bool CanConfigureUdpOpusFrameDuration => CurrentSetupStep == SetupStep.Entry &&
+        CurrentStreamState is StreamState.Idle or StreamState.Ended or StreamState.Failed;
+
+    public bool CanConfigureUdpOpusApplication => CanConfigureUdpOpusFrameDuration;
 
     public string SenderEntryDescription => SelectedTransportMode switch
     {
@@ -362,6 +421,44 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             TransportMode.UdpOpus => "UDP + Opus モードです。接続コードを Android 側に貼り付けると、Windows のメディア音声送信を開始できます。",
             _ => "準備できました。"
         };
+    }
+
+    public void SelectUdpOpusFrameDuration(int frameDurationMs)
+    {
+        if (!IsSupportedUdpOpusFrameDuration(frameDurationMs) ||
+            SelectedUdpOpusFrameDurationMs == frameDurationMs ||
+            !CanConfigureUdpOpusFrameDuration)
+        {
+            return;
+        }
+
+        SelectedUdpOpusFrameDurationMs = frameDurationMs;
+        RecreateUdpLoopbackSender();
+
+        if (SelectedTransportMode == TransportMode.UdpOpus)
+        {
+            StatusMessage = $"UDP + Opus のフレーム長を {frameDurationMs} ms に変更しました。";
+        }
+    }
+
+    public void SelectUdpOpusApplication(UdpOpusApplication application)
+    {
+        if (SelectedUdpOpusApplication == application || !CanConfigureUdpOpusApplication)
+        {
+            return;
+        }
+
+        SelectedUdpOpusApplication = application;
+        RecreateUdpLoopbackSender();
+
+        if (SelectedTransportMode == TransportMode.UdpOpus)
+        {
+            StatusMessage = application switch
+            {
+                UdpOpusApplication.Audio => "UDP + Opus の application を AUDIO に変更しました。",
+                _ => "UDP + Opus の application を RESTRICTED_LOWDELAY に変更しました。"
+            };
+        }
     }
 
     public async Task StartSenderAsync()
@@ -526,7 +623,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
         CurrentSetupStep = SetupStep.SenderShowInit;
         FlowStateLabel = "案内: 接続コードを共有";
-        StatusMessage = "UDP + Opus の接続コードを作成しました。コピーして Android 側に貼り付けてください。";
+        StatusMessage = $"UDP + Opus の接続コードを作成しました。Opus フレーム長は {SelectedUdpOpusFrameDurationMs} ms です。コピーして Android 側に貼り付けてください。";
     }
 
     public async Task ProcessInputPayloadAsync(string rawPayload)
@@ -704,6 +801,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task InitializeDeferredAsync()
     {
         var startupState = await Task.Run(() => CreateStartupState(_startupBridgeFactory!));
+        AppLogger.I(
+            "MainViewModel",
+            "startup_state_ready",
+            "Deferred startup state created",
+            new Dictionary<string, object?>
+            {
+                ["bridgeType"] = startupState.Bridge.GetType().Name,
+                ["backendReady"] = startupState.BackendHealth.IsReady,
+                ["backendMessage"] = startupState.BackendHealth.Message,
+                ["isDevelopmentStub"] = startupState.BackendHealth.IsDevelopmentStub
+            });
 
         RunOnUiThread(() =>
         {
@@ -963,7 +1071,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         var result = await _udpBridge.StartStreamingAsync(
             confirmSubmission.RemoteAddress,
             confirmPayload.ReceiverPort,
-            confirmPayload.ReceiverDeviceName
+            confirmPayload.ReceiverDeviceName,
+            SelectedUdpOpusApplication
         );
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -1523,9 +1632,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            var startupReason = FormatBridgeStartupReason(ex);
+            AppLogger.E(
+                "MainViewModel",
+                "startup_bridge_create_failed",
+                "Native WebRTC bridge creation failed",
+                new Dictionary<string, object?>
+                {
+                    ["startupReason"] = startupReason
+                },
+                ex);
             return new StubWebRtcBridge(
                 enabledForDevelopment: IsStubAllowedForDevelopment(),
-                startupReason: FormatBridgeStartupReason(ex)
+                startupReason: startupReason
             );
         }
     }
@@ -1538,7 +1657,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            return new StubUdpAudioSenderBridge(FormatUdpBridgeStartupReason(ex));
+            var startupReason = FormatUdpBridgeStartupReason(ex);
+            AppLogger.E(
+                "MainViewModel",
+                "startup_udp_bridge_create_failed",
+                "Native UDP bridge creation failed",
+                new Dictionary<string, object?>
+                {
+                    ["startupReason"] = startupReason
+                },
+                ex);
+            return new StubUdpAudioSenderBridge(startupReason);
         }
     }
 
@@ -1580,9 +1709,19 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            var startupReason = FormatBridgeStartupReason(ex);
+            AppLogger.E(
+                "MainViewModel",
+                "startup_bridge_factory_failed",
+                "Startup bridge factory failed",
+                new Dictionary<string, object?>
+                {
+                    ["startupReason"] = startupReason
+                },
+                ex);
             var fallbackBridge = new StubWebRtcBridge(
                 enabledForDevelopment: false,
-                startupReason: FormatBridgeStartupReason(ex)
+                startupReason: startupReason
             );
             return new StartupState(fallbackBridge, fallbackBridge.GetBackendHealth());
         }
@@ -1596,10 +1735,21 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
+            var startupReason = FormatBridgeStartupReason(ex);
+            AppLogger.E(
+                "MainViewModel",
+                "startup_backend_probe_failed",
+                "Backend health probe failed",
+                new Dictionary<string, object?>
+                {
+                    ["bridgeType"] = bridge.GetType().Name,
+                    ["startupReason"] = startupReason
+                },
+                ex);
             DisposeBackend(bridge);
             var fallbackBridge = new StubWebRtcBridge(
                 enabledForDevelopment: false,
-                startupReason: FormatBridgeStartupReason(ex)
+                startupReason: startupReason
             );
             return new StartupState(fallbackBridge, fallbackBridge.GetBackendHealth());
         }
@@ -1763,7 +1913,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(TransportModeDescription));
         OnPropertyChanged(nameof(SenderEntryDescription));
         OnPropertyChanged(nameof(ListenerEntryDescription));
+        OnPropertyChanged(nameof(UdpOpusFrameDurationSummary));
+        OnPropertyChanged(nameof(UdpOpusApplicationSummary));
         OnPropertyChanged(nameof(ShowManualPayloadFallback));
+    }
+
+    partial void OnSelectedUdpOpusFrameDurationMsChanged(int value)
+    {
+        _ = value;
+        OnPropertyChanged(nameof(SelectedUdpOpusFrameDurationIndex));
+        OnPropertyChanged(nameof(UdpOpusFrameDurationDescription));
+        OnPropertyChanged(nameof(UdpOpusFrameDurationSummary));
+    }
+
+    partial void OnSelectedUdpOpusApplicationChanged(UdpOpusApplication value)
+    {
+        _ = value;
+        OnPropertyChanged(nameof(SelectedUdpOpusApplicationIndex));
+        OnPropertyChanged(nameof(UdpOpusApplicationDescription));
+        OnPropertyChanged(nameof(UdpOpusApplicationSummary));
     }
 
     partial void OnVerificationCodeChanged(string value)
@@ -1790,6 +1958,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(StepProgressLabel));
         OnPropertyChanged(nameof(PathStepTitle));
         OnPropertyChanged(nameof(PathStepDescription));
+        OnPropertyChanged(nameof(CanConfigureUdpOpusFrameDuration));
+        OnPropertyChanged(nameof(CanConfigureUdpOpusApplication));
     }
 
     private string GetRecommendedAction()
@@ -1852,6 +2022,25 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return _udpLoopbackSender;
     }
 
+    private LoopbackCaptureOptions CreateUdpLoopbackCaptureOptions()
+    {
+        return new LoopbackCaptureOptions(
+            targetSampleRate: 48_000,
+            frameDurationMs: SelectedUdpOpusFrameDurationMs,
+            application: SelectedUdpOpusApplication);
+    }
+
+    private void RecreateUdpLoopbackSender()
+    {
+        if (_udpLoopbackSender is null)
+        {
+            return;
+        }
+
+        _udpLoopbackSender.DiagnosticsChanged -= OnLoopbackDiagnosticsChanged;
+        DisposeLoopbackSenderInstance(ref _udpLoopbackSender);
+    }
+
     private static void StopLoopbackSender(ILoopbackAudioSender? sender)
     {
         if (sender is not null && sender.IsRunning)
@@ -1883,6 +2072,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
 
         return $"{value[..3]} - {value[3..]}";
+    }
+
+    private static bool IsSupportedUdpOpusFrameDuration(int frameDurationMs)
+    {
+        return frameDurationMs is ShortUdpOpusFrameDurationMs or MediumUdpOpusFrameDurationMs or DefaultUdpOpusFrameDurationMs or LongUdpOpusFrameDurationMs or MaxUdpOpusFrameDurationMs;
     }
 
     private static string LocalizeFailureHint(string failureHint)

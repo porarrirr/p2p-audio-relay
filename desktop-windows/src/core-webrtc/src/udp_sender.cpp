@@ -90,6 +90,21 @@ start_result udp_sender::start_streaming(const std::string& remote_host, int rem
     }
 }
 
+void udp_sender::set_application(opus_application application) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (application_ == application) {
+        return;
+    }
+
+    application_ = application;
+    if (encoder_ != nullptr) {
+        opus_encoder_destroy(encoder_);
+        encoder_ = nullptr;
+        encoder_sample_rate_ = 0;
+        encoder_channels_ = 0;
+    }
+}
+
 bool udp_sender::send_pcm16(
     const std::int16_t* pcm,
     std::size_t samples_per_channel,
@@ -197,12 +212,15 @@ void udp_sender::initialize_encoder_locked(int sample_rate, int channels) {
     }
 
     int error = OPUS_OK;
-    encoder_ = opus_encoder_create(sample_rate, channels, OPUS_APPLICATION_RESTRICTED_LOWDELAY, &error);
+    const auto application = application_ == opus_application::audio
+        ? OPUS_APPLICATION_AUDIO
+        : OPUS_APPLICATION_RESTRICTED_LOWDELAY;
+    encoder_ = opus_encoder_create(sample_rate, channels, application, &error);
     if (error != OPUS_OK || encoder_ == nullptr) {
         throw std::runtime_error(std::string("Opus encoder initialization failed: ") + opus_strerror(error));
     }
 
-opus_encoder_ctl(encoder_, OPUS_SET_BITRATE(128'000));
+    opus_encoder_ctl(encoder_, OPUS_SET_BITRATE(128'000));
     opus_encoder_ctl(encoder_, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
     opus_encoder_ctl(encoder_, OPUS_SET_COMPLEXITY(10));
     opus_encoder_ctl(encoder_, OPUS_SET_INBAND_FEC(1));

@@ -20,11 +20,16 @@ public sealed class StubUdpAudioSenderBridge : IUdpAudioSenderBridge
 
     public bool IsStreaming => false;
 
-    public Task<UdpAudioSenderResult> StartStreamingAsync(string remoteHost, int remotePort, string remoteServiceName)
+    public Task<UdpAudioSenderResult> StartStreamingAsync(
+        string remoteHost,
+        int remotePort,
+        string remoteServiceName,
+        UdpOpusApplication application)
     {
         _ = remoteHost;
         _ = remotePort;
         _ = remoteServiceName;
+        _ = application;
         return Task.FromResult(
             new UdpAudioSenderResult(
                 Success: false,

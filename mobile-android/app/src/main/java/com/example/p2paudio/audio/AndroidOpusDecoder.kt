@@ -6,15 +6,17 @@ import android.media.MediaFormat
 import com.example.p2paudio.logging.AppLogger
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.min
 
 class AndroidOpusDecoder(
-    private val frameListener: (PcmFrame) -> Unit
+    private val frameListener: (PcmFrame, Long) -> Unit
 ) {
     private var decoder: MediaCodec? = null
     private var formatKey: String? = null
     private var lastWarningAtMs = 0L
+    private val frameAssembler = OpusDecodedFrameAssembler(frameListener)
 
-    fun decode(packet: UdpOpusPacket) {
+    fun decode(packet: UdpOpusPacket, arrivalRealtimeMs: Long) {
         ensureDecoder(packet)
         val codec = decoder ?: error("Opus decoder is not configured")
         val inputIndex = codec.dequeueInputBuffer(CODEC_TIMEOUT_US)
@@ -37,7 +39,8 @@ class AndroidOpusDecoder(
             packet.timestampMs * 1_000L,
             0
         )
-        drain(codec, packet)
+        frameAssembler.enqueuePacket(packet, arrivalRealtimeMs)
+        drain(codec)
     }
 
     fun close() {
@@ -48,6 +51,7 @@ class AndroidOpusDecoder(
         decoder = null
         formatKey = null
         lastWarningAtMs = 0L
+        frameAssembler.reset()
     }
 
     private fun ensureDecoder(packet: UdpOpusPacket) {
@@ -83,7 +87,7 @@ class AndroidOpusDecoder(
         )
     }
 
-    private fun drain(codec: MediaCodec, packet: UdpOpusPacket) {
+    private fun drain(codec: MediaCodec) {
         val bufferInfo = BufferInfo()
         while (true) {
             when (val outputIndex = codec.dequeueOutputBuffer(bufferInfo, 0)) {
@@ -108,17 +112,7 @@ class AndroidOpusDecoder(
                         }
                         val pcmBytes = ByteArray(bufferInfo.size)
                         readableBuffer.get(pcmBytes)
-                        frameListener(
-                            PcmFrame(
-                                sequence = packet.sequence,
-                                timestampMs = packet.timestampMs,
-                                sampleRate = packet.sampleRate,
-                                channels = packet.channels,
-                                bitsPerSample = 16,
-                                frameSamplesPerChannel = packet.frameSamplesPerChannel,
-                                pcmBytes = pcmBytes
-                            )
-                        )
+                        frameAssembler.appendDecodedPcm(pcmBytes)
                     }
                     codec.releaseOutputBuffer(outputIndex, false)
                 }
@@ -151,7 +145,124 @@ put("OpusHead".toByteArray())
     }
 
     companion object {
-        private const val CODEC_TIMEOUT_US = 10_000L
+        private const val CODEC_TIMEOUT_US = 20_000L
         private const val WARNING_LOG_INTERVAL_MS = 1_000L
+    }
+}
+
+internal data class PendingDecodedPacket(
+    val sequence: Int,
+    val timestampMs: Long,
+    val sampleRate: Int,
+    val channels: Int,
+    val bitsPerSample: Int,
+    val frameSamplesPerChannel: Int,
+    val arrivalRealtimeMs: Long
+) {
+    val expectedPcmBytes: Int = frameSamplesPerChannel * channels * (bitsPerSample / 8).coerceAtLeast(1)
+}
+
+internal class OpusDecodedFrameAssembler(
+    private val frameListener: (PcmFrame, Long) -> Unit
+) {
+    private val pendingPackets = ArrayDeque<PendingDecodedPacket>()
+    private val pendingPcmBytes = PcmByteQueue()
+
+    fun enqueuePacket(packet: UdpOpusPacket, arrivalRealtimeMs: Long) {
+        pendingPackets.addLast(
+            PendingDecodedPacket(
+                sequence = packet.sequence,
+                timestampMs = packet.timestampMs,
+                sampleRate = packet.sampleRate,
+                channels = packet.channels,
+                bitsPerSample = 16,
+                frameSamplesPerChannel = packet.frameSamplesPerChannel,
+                arrivalRealtimeMs = arrivalRealtimeMs
+            )
+        )
+        emitCompleteFrames()
+    }
+
+    fun appendDecodedPcm(pcmBytes: ByteArray) {
+        pendingPcmBytes.append(pcmBytes)
+        emitCompleteFrames()
+    }
+
+    fun reset() {
+        pendingPackets.clear()
+        pendingPcmBytes.clear()
+    }
+
+    private fun emitCompleteFrames() {
+        while (pendingPackets.isNotEmpty()) {
+            val nextPacket = pendingPackets.first()
+            if (pendingPcmBytes.availableBytes < nextPacket.expectedPcmBytes) {
+                return
+            }
+
+            val frameBytes = pendingPcmBytes.read(nextPacket.expectedPcmBytes)
+            pendingPackets.removeFirst()
+            val bytesPerSampleFrame = nextPacket.channels * (nextPacket.bitsPerSample / 8).coerceAtLeast(1)
+            check(frameBytes.size % bytesPerSampleFrame == 0) {
+                "Decoded PCM byte count ${frameBytes.size} is not aligned to the audio format"
+            }
+            frameListener(
+                PcmFrame(
+                    sequence = nextPacket.sequence,
+                    timestampMs = nextPacket.timestampMs,
+                    sampleRate = nextPacket.sampleRate,
+                    channels = nextPacket.channels,
+                    bitsPerSample = nextPacket.bitsPerSample,
+                    frameSamplesPerChannel = frameBytes.size / bytesPerSampleFrame,
+                    pcmBytes = frameBytes
+                ),
+                nextPacket.arrivalRealtimeMs
+            )
+        }
+    }
+}
+
+private class PcmByteQueue {
+    private val chunks = ArrayDeque<ByteArray>()
+    var availableBytes: Int = 0
+        private set
+
+    fun append(bytes: ByteArray) {
+        if (bytes.isEmpty()) {
+            return
+        }
+        chunks.addLast(bytes)
+        availableBytes += bytes.size
+    }
+
+    fun read(byteCount: Int): ByteArray {
+        require(byteCount in 0..availableBytes)
+        if (byteCount == 0) {
+            return ByteArray(0)
+        }
+
+        val output = ByteArray(byteCount)
+        var outputOffset = 0
+        while (outputOffset < byteCount) {
+            val chunk = chunks.removeFirst()
+            val copyCount = min(chunk.size, byteCount - outputOffset)
+            chunk.copyInto(
+                destination = output,
+                destinationOffset = outputOffset,
+                startIndex = 0,
+                endIndex = copyCount
+            )
+            if (copyCount < chunk.size) {
+                chunks.addFirst(chunk.copyOfRange(copyCount, chunk.size))
+            }
+            outputOffset += copyCount
+        }
+        availableBytes -= byteCount
+        return output
+    }
+
+    fun clear() {
+        chunks.clear()
+        availableBytes = 0
     }
 }

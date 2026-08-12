@@ -40,6 +40,38 @@ enum QrPayloadCodec {
         return try decoder.decode(PairingConfirmPayload.self, from: data)
     }
 
+    static func encodeUdpInit(_ payload: UdpInitPayload) throws -> String {
+        let data = try encoder.encode(payload)
+        guard let raw = String(data: data, encoding: .utf8) else {
+            throw SessionFailure(code: .invalidPayload, message: L10n.tr("error.invalid_udp_init_payload"))
+        }
+        return compressTransportIfBeneficial(raw, data: data)
+    }
+
+    static func encodeUdpConfirm(_ payload: UdpConfirmPayload) throws -> String {
+        let data = try encoder.encode(payload)
+        guard let raw = String(data: data, encoding: .utf8) else {
+            throw SessionFailure(code: .invalidPayload, message: L10n.tr("error.invalid_udp_confirm_payload"))
+        }
+        return compressTransportIfBeneficial(raw, data: data)
+    }
+
+    static func decodeUdpInit(_ raw: String) throws -> UdpInitPayload {
+        let normalized = try decodeTransportString(raw)
+        guard let data = normalized.data(using: .utf8) else {
+            throw SessionFailure(code: .invalidPayload, message: L10n.tr("error.invalid_udp_init_payload"))
+        }
+        return try decoder.decode(UdpInitPayload.self, from: data)
+    }
+
+    static func decodeUdpConfirm(_ raw: String) throws -> UdpConfirmPayload {
+        let normalized = try decodeTransportString(raw)
+        guard let data = normalized.data(using: .utf8) else {
+            throw SessionFailure(code: .invalidPayload, message: L10n.tr("error.invalid_udp_confirm_payload"))
+        }
+        return try decoder.decode(UdpConfirmPayload.self, from: data)
+    }
+
     private static func compressTransportIfBeneficial(_ raw: String, data: Data) -> String {
         if data.count < minBytesForCompression {
             return raw

@@ -47,17 +47,31 @@ public sealed partial class MainWindow : Window
     private async void OnActivated(object sender, WindowActivatedEventArgs args)
     {
         _ = args;
-        EnsureWindowVisible();
-        if (_startupInitialized)
+        try
         {
-            return;
+            EnsureWindowVisible();
+            if (_startupInitialized)
+            {
+                return;
+            }
+
+            _startupInitialized = true;
+            Activated -= OnActivated;
+
+            await Task.Yield();
+            await ViewModel.InitializeAsync();
         }
-
-        _startupInitialized = true;
-        Activated -= OnActivated;
-
-        await Task.Yield();
-        await ViewModel.InitializeAsync();
+        catch (Exception ex)
+        {
+            AppLogger.E(
+                "MainWindow",
+                "startup_initialize_failed",
+                "Main view model initialization failed",
+                exception: ex);
+            ViewModel.StatusMessage = "起動時の初期化に失敗しました。";
+            ViewModel.FailureHintLabel = $"起動時の初期化に失敗しました: {ex.Message}";
+            ViewModel.CurrentStreamState = StreamState.Failed;
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -100,6 +114,9 @@ public sealed partial class MainWindow : Window
             : Visibility.Collapsed;
         ListenerScanInitCard.Visibility = !hideSetupCards && step == SetupStep.ListenerScanInit ? Visibility.Visible : Visibility.Collapsed;
         ListenerShowConfirmCard.Visibility = !hideSetupCards && step == SetupStep.ListenerShowConfirm ? Visibility.Visible : Visibility.Collapsed;
+        UdpOpusFrameDurationPanel.Visibility = ViewModel.SelectedTransportMode == TransportMode.UdpOpus
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         var showFailure = streamState is StreamState.Failed or StreamState.Interrupted
             || !string.IsNullOrEmpty(ViewModel.FailureHintLabel);
@@ -151,6 +168,32 @@ public sealed partial class MainWindow : Window
         ViewModel.SelectTransportMode(TransportModeComboBox.SelectedIndex == 1
             ? TransportMode.UdpOpus
             : TransportMode.WebRtc);
+    }
+
+    private void OnUdpOpusFrameDurationSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        var frameDurationMs = UdpOpusFrameDurationComboBox.SelectedIndex switch
+        {
+            0 => 5,
+            1 => 10,
+            2 => 20,
+            3 => 40,
+            4 => 60,
+            _ => 20
+        };
+        ViewModel.SelectUdpOpusFrameDuration(frameDurationMs);
+    }
+
+    private void OnUdpOpusApplicationSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        var application = UdpOpusApplicationComboBox.SelectedIndex == 1
+            ? Services.UdpOpusApplication.Audio
+            : Services.UdpOpusApplication.RestrictedLowDelay;
+        ViewModel.SelectUdpOpusApplication(application);
     }
 
     private async void OnPastePayloadClick(object sender, RoutedEventArgs e)
@@ -248,7 +291,43 @@ public sealed partial class MainWindow : Window
 
     private void OnClosed(object sender, WindowEventArgs args)
     {
-        ViewModel.Shutdown();
+        _ = sender;
+        _ = args;
+
+        Activated -= OnActivated;
+        Closed -= OnClosed;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+
+        _transientTimer?.Stop();
+        _transientTimer = null;
+
+        try
+        {
+            AppLogger.I(
+                "MainWindow",
+                "shutdown_started",
+                "Running main view model shutdown before application exit");
+            ViewModel.Shutdown();
+            AppLogger.I(
+                "MainWindow",
+                "shutdown_completed",
+                "Main view model shutdown completed before application exit");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.E(
+                "MainWindow",
+                "shutdown_failed",
+                "Main view model shutdown failed during window close",
+                exception: ex);
+        }
+        finally
+        {
+            if (Application.Current is App app)
+            {
+                app.OnMainWindowClosed(this);
+            }
+        }
     }
 
     private void TryApplySystemBackdrop()

@@ -17,6 +17,23 @@ settings:
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
 
+schemes:
+  P2PAudio:
+    build:
+      targets:
+        P2PAudio: all
+        AudioBroadcastExtension: all
+        P2PAudioTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - name: P2PAudioTests
+    archive:
+      config: Release
+
 targets:
   P2PAudio:
     type: application
@@ -31,6 +48,8 @@ targets:
         UILaunchScreen: {}
         NSCameraUsageDescription: QR code scanning for P2P pairing.
         NSMicrophoneUsageDescription: Optional microphone permission for ReplayKit capture flows.
+        UIBackgroundModes:
+          - audio
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -48,8 +67,6 @@ targets:
         PRODUCT_NAME: P2PAudio
         CODE_SIGN_ENTITLEMENTS: App/P2PAudio.entitlements
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
-    scheme:
-      gatherCoverageData: false
 
   AudioBroadcastExtension:
     type: app-extension

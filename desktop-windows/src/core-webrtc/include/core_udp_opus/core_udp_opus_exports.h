@@ -32,7 +32,8 @@ CORE_UDP_OPUS_EXPORT void core_udp_opus_destroy(core_udp_opus_handle* handle);
 CORE_UDP_OPUS_EXPORT core_udp_opus_start_result core_udp_opus_start_streaming(
     core_udp_opus_handle* handle,
     const char* remote_host,
-    int remote_port
+    int remote_port,
+    int application
 );
 CORE_UDP_OPUS_EXPORT int core_udp_opus_send_pcm16(
     core_udp_opus_handle* handle,

@@ -2,8 +2,10 @@ package com.example.p2paudio.transport
 
 import android.content.Context
 import android.os.Process
+import android.os.SystemClock
 import com.example.p2paudio.audio.AndroidOpusDecoder
 import com.example.p2paudio.audio.PcmFrame
+import com.example.p2paudio.audio.UdpOpusPacket
 import com.example.p2paudio.audio.UdpOpusPacketCodec
 import com.example.p2paudio.logging.AppLogger
 import com.example.p2paudio.model.AudioStreamState
@@ -14,14 +16,49 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
 import java.net.SocketException
+import java.util.PriorityQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 class UdpListenerTransportException(val failure: SessionFailure) : IllegalStateException(failure.message)
 
+internal data class QueuedRealtimeDecodePacket(
+    val packet: UdpOpusPacket,
+    val arrivalRealtimeMs: Long
+)
+
+internal data class RealtimeDecodeEnqueueResult(
+    val droppedSequence: Int? = null,
+    val duplicateSequence: Int? = null
+)
+
+internal fun enqueueRealtimeDecodePacket(
+    pendingPackets: PriorityQueue<QueuedRealtimeDecodePacket>,
+    packet: UdpOpusPacket,
+    arrivalRealtimeMs: Long,
+    maxQueuePackets: Int
+): RealtimeDecodeEnqueueResult {
+    if (pendingPackets.any { it.packet.sequence == packet.sequence }) {
+        return RealtimeDecodeEnqueueResult(duplicateSequence = packet.sequence)
+    }
+
+    var droppedSequence: Int? = null
+    while (pendingPackets.size >= maxQueuePackets) {
+        val droppedPacket = pendingPackets.poll() ?: break
+        droppedSequence = droppedPacket.packet.sequence
+    }
+    pendingPackets.add(
+        QueuedRealtimeDecodePacket(
+            packet = packet,
+            arrivalRealtimeMs = arrivalRealtimeMs
+        )
+    )
+    return RealtimeDecodeEnqueueResult(droppedSequence = droppedSequence)
+}
+
 class UdpOpusListenerTransport(
     context: Context,
     private val stateListener: (AudioStreamState, String?) -> Unit,
-    private val pcmFrameListener: (PcmFrame) -> Unit,
+    private val pcmFrameListener: (PcmFrame, Long) -> Unit,
     private val diagnosticsListener: (ConnectionDiagnostics) -> Unit = {},
     private val serviceRegisteredListener: (String) -> Unit = {}
 ) : AudioTransport {
@@ -29,9 +66,17 @@ class UdpOpusListenerTransport(
     override val mode: TransportMode = TransportMode.UDP_OPUS
 
     private val advertiser = NsdUdpReceiverAdvertiser(context)
-    private val decoder = AndroidOpusDecoder(pcmFrameListener)
+    private val decodeLock = Object()
+    private val pendingDecodePackets = PriorityQueue(
+        compareBy<QueuedRealtimeDecodePacket> { it.packet.sequence }
+            .thenBy { it.arrivalRealtimeMs }
+    )
+    private val decoder = AndroidOpusDecoder { frame, arrivalRealtimeMs ->
+        pcmFrameListener(frame, arrivalRealtimeMs)
+    }
     private val running = AtomicBoolean(false)
     private var listenerThread: Thread? = null
+    private var decoderThread: Thread? = null
     @Volatile
     private var socket: DatagramSocket? = null
     @Volatile
@@ -52,6 +97,7 @@ class UdpOpusListenerTransport(
 
             val datagramSocket = DatagramSocket(null).apply {
                 reuseAddress = true
+                receiveBufferSize = MAX_PACKET_BYTES * SOCKET_RECEIVE_BUFFER_PACKETS
                 bind(InetSocketAddress(UDP_PORT))
             }
             socket = datagramSocket
@@ -71,6 +117,24 @@ class UdpOpusListenerTransport(
                 )
             }
 
+            decoderThread = Thread {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+                try {
+                    while (running.get()) {
+                        val nextPacket = waitForDecodePacket() ?: continue
+                        decoder.decode(nextPacket.packet, nextPacket.arrivalRealtimeMs)
+                    }
+                } catch (_: InterruptedException) {
+                } catch (error: Exception) {
+                    if (running.get()) {
+                        fail(error, "UDP Opus デコードに失敗しました。")
+                    }
+                }
+            }.apply {
+                name = "udp-opus-decoder"
+                start()
+            }
+
             listenerThread = Thread {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
                 val buffer = ByteArray(MAX_PACKET_BYTES)
@@ -79,6 +143,7 @@ class UdpOpusListenerTransport(
                     val packet = DatagramPacket(buffer, buffer.size)
                     try {
                         activeSocket.receive(packet)
+                        val arrivalRealtimeMs = SystemClock.elapsedRealtime()
                         val decoded = UdpOpusPacketCodec.decode(packet.data.copyOf(packet.length))
                         if (decoded == null) {
                             AppLogger.w(
@@ -94,7 +159,7 @@ class UdpOpusListenerTransport(
                             streamingStarted = true
                             stateListener(AudioStreamState.STREAMING, STREAMING_MESSAGE)
                         }
-                        decoder.decode(decoded)
+                        enqueueDecodePacket(decoded, arrivalRealtimeMs)
                     } catch (_: SocketException) {
                         if (running.get()) {
                             fail(IllegalStateException("UDP socket closed unexpectedly"), "受信ソケットが閉じました。")
@@ -141,7 +206,13 @@ class UdpOpusListenerTransport(
         socket?.close()
         socket = null
         listenerThread?.interrupt()
+        decoderThread?.interrupt()
+        synchronized(decodeLock) {
+            pendingDecodePackets.clear()
+            decodeLock.notifyAll()
+        }
         listenerThread = null
+        decoderThread = null
         decoder.close()
 
         if (wasRunning) {
@@ -156,6 +227,54 @@ class UdpOpusListenerTransport(
             }
         }
         streamingStarted = false
+    }
+
+    private fun enqueueDecodePacket(packet: UdpOpusPacket, arrivalRealtimeMs: Long) {
+        lateinit var enqueueResult: RealtimeDecodeEnqueueResult
+        var queuedPackets: Int
+        synchronized(decodeLock) {
+            enqueueResult = enqueueRealtimeDecodePacket(
+                pendingPackets = pendingDecodePackets,
+                packet = packet,
+                arrivalRealtimeMs = arrivalRealtimeMs,
+                maxQueuePackets = MAX_DECODE_QUEUE_PACKETS
+            )
+            queuedPackets = pendingDecodePackets.size
+            decodeLock.notifyAll()
+        }
+
+        if (enqueueResult.duplicateSequence != null) {
+            AppLogger.w(
+                "UdpOpusListener",
+                "packet_duplicate_ignored",
+                "Ignored a duplicate UDP Opus packet before decode",
+                context = mapOf(
+                    "duplicateSequence" to enqueueResult.duplicateSequence,
+                    "queuedPackets" to queuedPackets
+                )
+            )
+        }
+
+        if (enqueueResult.droppedSequence != null) {
+            AppLogger.w(
+                "UdpOpusListener",
+                "packet_queue_overflow",
+                "Dropped an older UDP Opus packet to preserve realtime playback",
+                context = mapOf(
+                    "droppedSequence" to enqueueResult.droppedSequence,
+                    "queuedPackets" to queuedPackets
+                )
+            )
+        }
+    }
+
+    private fun waitForDecodePacket(): QueuedRealtimeDecodePacket? {
+        synchronized(decodeLock) {
+            while (running.get() && pendingDecodePackets.isEmpty()) {
+                decodeLock.wait()
+            }
+            return pendingDecodePackets.poll()
+        }
     }
 
     private fun fail(error: Throwable, message: String) {
@@ -178,7 +297,10 @@ class UdpOpusListenerTransport(
 
     companion object {
         const val UDP_PORT = 49_152
-        private const val MAX_PACKET_BYTES = 1_500
+        internal const val MAX_OPUS_PAYLOAD_BYTES = 1_500
+        internal const val MAX_PACKET_BYTES = UdpOpusPacketCodec.HEADER_BYTES + MAX_OPUS_PAYLOAD_BYTES
+        internal const val MAX_DECODE_QUEUE_PACKETS = 32
+        private const val SOCKET_RECEIVE_BUFFER_PACKETS = 128
         private const val WAITING_MESSAGE = "Windows からの UDP+Opus 接続を待っています。"
         private const val STREAMING_MESSAGE = "Windows のメディア音声を UDP+Opus で受信しています。"
     }

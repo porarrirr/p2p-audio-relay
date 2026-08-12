@@ -56,12 +56,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.example.p2paudio.logging.AppLogger
+import com.example.p2paudio.audio.PlaybackLatencyPreset
 import com.example.p2paudio.model.AudioStreamDiagnostics
 import com.example.p2paudio.model.AudioStreamSource
 import com.example.p2paudio.model.AudioStreamState
 import com.example.p2paudio.model.ConnectionDiagnostics
 import com.example.p2paudio.model.FailureCode
 import com.example.p2paudio.model.NetworkPathType
+import com.example.p2paudio.service.AudioReceiveService
 import com.example.p2paudio.service.AudioSendService
 import com.example.p2paudio.transport.TransportMode
 import com.example.p2paudio.ui.MainUiState
@@ -120,8 +122,20 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    MainViewModel.UiCommand.StartUdpReceiveService -> {
+                        runCatching {
+                            startForegroundReceiveService()
+                        }.onFailure { error ->
+                            viewModel.onUdpReceiveServiceStartFailed(error)
+                        }
+                    }
+
                     MainViewModel.UiCommand.StopProjectionService -> {
                         stopForegroundSendService()
+                    }
+
+                    MainViewModel.UiCommand.StopUdpReceiveService -> {
+                        stopForegroundReceiveService()
                     }
                 }
             }
@@ -134,6 +148,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         uiState = uiState,
                         onSelectTransportMode = viewModel::selectTransportMode,
+                        onSelectReceiverLatencyPreset = viewModel::selectReceiverLatencyPreset,
                         onChooseSender = viewModel::beginSenderFlow,
                         onContinueSender = viewModel::startSenderFlowRequested,
                         onChooseListener = viewModel::beginListenerFlow,
@@ -179,12 +194,26 @@ class MainActivity : ComponentActivity() {
         AppLogger.i("MainActivity", "stop_foreground_service", "Stopping AudioSendService")
         stopService(Intent(this, AudioSendService::class.java))
     }
+
+    private fun startForegroundReceiveService() {
+        AppLogger.i("MainActivity", "start_receive_service", "Starting AudioReceiveService")
+        val intent = Intent(this, AudioReceiveService::class.java).apply {
+            action = AudioReceiveService.ACTION_START_RECEIVE
+        }
+        startForegroundService(intent)
+    }
+
+    private fun stopForegroundReceiveService() {
+        AppLogger.i("MainActivity", "stop_receive_service", "Stopping AudioReceiveService")
+        stopService(Intent(this, AudioReceiveService::class.java))
+    }
 }
 
 @Composable
 private fun MainScreen(
     uiState: MainUiState,
     onSelectTransportMode: (TransportMode) -> Unit,
+    onSelectReceiverLatencyPreset: (PlaybackLatencyPreset) -> Unit,
     onChooseSender: () -> Unit,
     onContinueSender: () -> Unit,
     onChooseListener: () -> Unit,
@@ -249,7 +278,10 @@ private fun MainScreen(
                 expirySeconds = expirySeconds
             )
 
-            AudioStreamCard(uiState.audioStreamDiagnostics)
+            AudioStreamCard(
+                diagnostics = uiState.audioStreamDiagnostics,
+                receiverLatencyPreset = uiState.receiverLatencyPreset
+            )
 
             if (transientMessage.isNotBlank()) {
                 Text(
@@ -266,7 +298,9 @@ private fun MainScreen(
                 when (uiState.setupStep) {
                     SetupStep.ENTRY -> EntryActionsCard(
                         transportMode = uiState.transportMode,
+                        receiverLatencyPreset = uiState.receiverLatencyPreset,
                         onSelectTransportMode = onSelectTransportMode,
+                        onSelectReceiverLatencyPreset = onSelectReceiverLatencyPreset,
                         onChooseSender = onChooseSender,
                         onChooseListener = onChooseListener,
                         canStartNewFlow = canStartNewFlow
@@ -331,7 +365,10 @@ private fun MainScreen(
 }
 
 @Composable
-private fun AudioStreamCard(diagnostics: AudioStreamDiagnostics) {
+private fun AudioStreamCard(
+    diagnostics: AudioStreamDiagnostics,
+    receiverLatencyPreset: PlaybackLatencyPreset
+) {
     if (!diagnostics.hasContent()) {
         return
     }
@@ -350,6 +387,14 @@ private fun AudioStreamCard(diagnostics: AudioStreamDiagnostics) {
                 text = audioSourceLabel(diagnostics),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(
+                    R.string.audio_stream_latency_format,
+                    stringResource(receiverLatencyPreset.labelResId)
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = "形式: ${diagnostics.sampleRate} Hz / ${channelLabel(diagnostics.channels)} / ${diagnostics.bitsPerSample}bit / ${diagnostics.frameDurationMs}ms (${diagnostics.frameSamplesPerChannel} samples)",
@@ -600,7 +645,9 @@ private fun ConnectionOverviewCard(
 @Composable
 private fun EntryActionsCard(
     transportMode: TransportMode,
+    receiverLatencyPreset: PlaybackLatencyPreset,
     onSelectTransportMode: (TransportMode) -> Unit,
+    onSelectReceiverLatencyPreset: (PlaybackLatencyPreset) -> Unit,
     onChooseSender: () -> Unit,
     onChooseListener: () -> Unit,
     canStartNewFlow: Boolean
@@ -626,6 +673,12 @@ private fun EntryActionsCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        ReceiverLatencySelector(
+            selectedPreset = receiverLatencyPreset,
+            enabled = canStartNewFlow,
+            onSelectPreset = onSelectReceiverLatencyPreset
+        )
 
         ChecklistBlock(
             items = listOf(
@@ -691,6 +744,59 @@ private fun TransportModeSelector(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReceiverLatencySelector(
+    selectedPreset: PlaybackLatencyPreset,
+    enabled: Boolean,
+    onSelectPreset: (PlaybackLatencyPreset) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.receiver_latency_title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = stringResource(R.string.receiver_latency_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        PlaybackLatencyPreset.entries.forEach { preset ->
+            val buttonText = stringResource(preset.labelResId)
+            if (selectedPreset == preset) {
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onSelectPreset(preset) },
+                    enabled = enabled
+                ) {
+                    Text(buttonText)
+                }
+            } else {
+                OutlinedButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onSelectPreset(preset) },
+                    enabled = enabled
+                ) {
+                    Text(buttonText)
+                }
+            }
+        }
+        Text(
+            text = stringResource(
+                R.string.receiver_latency_selected_format,
+                stringResource(selectedPreset.labelResId)
+            ),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = stringResource(selectedPreset.descriptionResId),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
