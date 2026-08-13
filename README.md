@@ -1,31 +1,30 @@
 # P2P Device Audio Relay
 
-Native Android, iOS, and Windows implementations for relaying device audio directly between two devices without media-relay or signaling servers. All platforms target the same v2 pairing and transport protocol.
+English | [日本語](README.ja.md)
 
-## Structure
+A cross-platform app for sending device audio directly between two devices on the same local network. It includes native Android, iOS, and Windows apps and does not require a media-relay or signaling server.
 
-- `docs/`: protocol, state machine, constraints, and test matrix.
-- `mobile-android/`: Android sender/receiver implementation (Kotlin).
-- `mobile-ios/`: iOS sender/receiver implementation (Swift + ReplayKit extension).
-- `desktop-windows/`: Windows implementation (WinUI + core protocol/audio logic + native WebRTC bridge).
+## Highlights
 
-## Constraints
+- Direct one-to-one audio sessions over a LAN
+- Android, iOS, and Windows implementations
+- Pairing through an out-of-band payload
+- USB tethering supported as a local IP connection
+- No project-operated relay, signaling, analytics, or account service
 
-- No media relay server and no signaling server.
-- LAN-only connection using host ICE candidates.
-- USB tethering is supported as a LAN-equivalent IP path (Android USB tethering / iPhone Personal Hotspot over USB).
-- 1:1 session via out-of-band payload exchange.
-- Payload transport supports compressed mode (`p2paudio-z1:` zlib + Base64URL).
-- iOS sender can capture ReplayKit app audio only, not system-wide audio.
+## Important limitations
 
-See [known limitations](docs/KNOWN_LIMITATIONS.md) and the [test matrix](docs/TEST_MATRIX.md) before treating a platform pair as supported.
+- Connections use local-network host candidates and are intended for LAN use.
+- iOS can capture audio exposed by ReplayKit; it cannot capture all system audio.
+- Platform combinations should be checked against the [test matrix](docs/TEST_MATRIX.md).
+- Review the [known limitations](docs/KNOWN_LIMITATIONS.md) before relying on a specific sender and receiver pair.
 
-## Windows audio dependency
+Setup and platform-specific instructions are maintained in the relevant app directories and under [`docs/`](docs/).
 
-The Windows application consumes the official [`NAudio` 2.2.1 NuGet package](https://www.nuget.org/packages/NAudio/2.2.1) through `PackageReference`. No copied or decompiled NAudio source is included in this repository. Restore dependencies with the standard .NET/NuGet workflow before building the Windows solution.
+## Dependencies
 
-Third-party dependency information is recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The Windows app uses the official [`NAudio` 2.2.1 NuGet package](https://www.nuget.org/packages/NAudio/2.2.1). Third-party license information is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-No license is currently granted for this repository's original code. Copyright remains with its respective owner. Third-party packages remain subject to their own licenses; the absence of a project license does not replace or modify those terms.
+No license is currently granted for this repository's original code. Third-party components remain subject to their own licenses.
