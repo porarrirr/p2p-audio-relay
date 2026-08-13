@@ -23,8 +23,8 @@
 
 ## 依存関係
 
-Windows版は公式の [`NAudio` 2.2.1 NuGetパッケージ](https://www.nuget.org/packages/NAudio/2.2.1) を使用します。第三者ライセンスは [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。
+各プラットフォーム版は、WebRTC、AndroidX、Kotlin、NAudio、libdatachannel、Opus、OpenSSL、PortAudio、libsrtp、usrsctp、zlibなどを公式パッケージから復元します。必要な帰属表示、完全なライセンス本文、MPL-2.0のソース提供要件は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) に記載しています。ビルド設定により、この通知をAndroid、iOS、Windowsの配布物へ含めます。
 
 ## ライセンス
 
-このリポジトリの独自コードには、現在ライセンスを設定していません。第三者コンポーネントには、それぞれのライセンスが適用されます。
+独自コードはプロプライエタリで、すべての権利を留保します。詳細は [LICENSE](LICENSE) を参照してください。第三者コンポーネントには個別のライセンスとソース提供義務が適用されます。

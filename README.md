@@ -23,8 +23,8 @@ Setup and platform-specific instructions are maintained in the relevant app dire
 
 ## Dependencies
 
-The Windows app uses the official [`NAudio` 2.2.1 NuGet package](https://www.nuget.org/packages/NAudio/2.2.1). Third-party license information is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The platform apps restore WebRTC, AndroidX, Kotlin, NAudio, libdatachannel, Opus, OpenSSL, PortAudio, libsrtp, usrsctp, zlib, and related dependencies from their official package sources. Required attribution, complete license texts, and the MPL-2.0 source-availability requirement are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The build configurations copy this notice into Android, iOS, and Windows release outputs.
 
 ## License
 
-No license is currently granted for this repository's original code. Third-party components remain subject to their own licenses.
+The original code is proprietary and all rights are reserved. See [LICENSE](LICENSE). Third-party components remain subject to their own licenses and source-availability obligations.

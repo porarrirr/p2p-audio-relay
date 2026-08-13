@@ -31,6 +31,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="$(RepoRoot)THIRD_PARTY_NOTICES.md"
+             Link="THIRD_PARTY_NOTICES.md"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
     <Content Include="$(SystemRoot)\System32\msvcp140.dll"
              Condition="Exists('$(SystemRoot)\System32\msvcp140.dll') and !Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\msvcp140.dll')"
              Link="runtimes\win-x64\native\msvcp140.dll"

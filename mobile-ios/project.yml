@@ -41,6 +41,10 @@ targets:
     deploymentTarget: "15.0"
     sources:
       - path: App
+        excludes:
+          - Resources/THIRD_PARTY_NOTICES.md
+      - path: App/Resources/THIRD_PARTY_NOTICES.md
+        buildPhase: resources
     info:
       path: App/Info.plist
       properties:
